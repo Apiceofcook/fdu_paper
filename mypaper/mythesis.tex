@@ -1,0 +1,193 @@
+% ========================================
+% 复旦大学学位论文 LaTeX 模板
+% 论文题目：多模态视觉数据合成研究
+% 作者：郑国栋
+% ========================================
+
+\RequirePackage{etoolbox}
+
+\documentclass[twoside]{fduthesis}
+
+% ========================================
+% 导入必要的宏包
+% ========================================
+% 以下两个包用于生成示例文本，正式写作时可以删除
+% \usepackage{kantlipsum}
+% \usepackage{zhlipsum}
+
+% 其他常用宏包（根据需要取消注释）
+% \usepackage{amsmath}        % 数学公式
+% \usepackage{algorithm}      % 算法环境
+% \usepackage{algorithmic}    % 算法描述
+% \usepackage{listings}       % 代码清单
+% \usepackage{subcaption}     % 子图
+
+\fdusetup{
+  style = {
+    font = times,
+    cjk-font = fandol,
+    % font-size = 5,
+    fullwidth-stop = mapping,
+    footnote-style = pifont*,
+    % auto-make-cover = false
+    logo = {../testfiles/support/fudan-name.pdf},
+    % logo-size = {2cm,2cm,2cm}
+    hyperlink = color,
+    hyperlink-color = default,
+%
+%
+    bib-backend = bibtex,
+    bib-style = numerical,
+    bib-resource = {mythesis.bib}
+  },
+  info = {
+    title = {多模态视觉数据合成研究},
+    title* = {Measurements of the interaction between energetic
+      photons and hadrons show that the interaction},
+%    date = {2017年2月10日},
+    author = {郑国栋},
+    author* = {Guodong Zheng},
+    supervisor = {黄萱菁\quad 教授},
+    instructors = {
+      张五六 \quad 工程师,
+      赵\quad 甲 \quad 工程师,
+      王三四 \quad 讲\quad 师
+    },
+    major = {物理学},
+    department = {凝聚态物理系},
+    secret-level = ii,
+    secret-year = {三年},
+    student-id = {14307110000},
+    keywords = {\LaTeX, 排版, 字体排印, 学位论文, 数学, 物理, 计算机, \LaTeX, 排版, 字体排印, 学位论文, 数学, 物理, 计算机, \LaTeX, 排版, 字体排印, 学位论文, 数学, 物理, 计算机},
+    keywords* = {\LaTeX, typesetting, typography, dissertation, mathematics, physics, computer science, \LaTeX, typesetting, typography, dissertation, mathematics, physics, computer science, \LaTeX, typesetting, typography, dissertation, mathematics, physics, computer science},
+    clc = {O414.1/65}
+  }
+}
+
+% ========================================
+% 自定义命令和宏定义（根据需要添加）
+% ========================================
+
+% 示例：自定义命令
+% \newcommand{\mycommand}[1]{...}
+
+% 如果需要自定义字体，取消下面的注释
+% \setsansfont{Calibri}
+% \setmonofont{Consolas}
+% \setmathfont{TeX Gyre Pagella Math}
+
+\begin{document}
+
+\raggedbottom
+
+% ========================================
+% 前置部分
+% ========================================
+\frontmatter
+
+% 目录
+\tableofcontents
+
+% 插图目录
+\listoffigures
+
+% 表格目录
+\listoftables
+
+% ========================================
+% 中文摘要
+% ========================================
+\begin{abstract}
+% 在此处撰写中文摘要
+% 摘要应简明扼要地概括论文的主要内容、研究方法、主要结论等
+% 建议字数：300-500字
+
+本文研究了多模态视觉数据合成的相关问题...
+% （此处为示例内容，请替换为您的实际摘要）
+
+\end{abstract}
+
+% ========================================
+% 英文摘要
+% ========================================
+\begin{abstract*}
+% Write your English abstract here
+% The abstract should briefly summarize the main content, research methods, 
+% and conclusions of the thesis
+% Recommended length: 200-400 words
+
+This thesis studies the problems related to multimodal visual data synthesis...
+% (This is example content, please replace it with your actual abstract)
+
+\end{abstract*}
+
+% ========================================
+% 符号说明（根据论文实际使用的符号进行修改）
+% ========================================
+\begin{notation}[lp{20em}]
+% 数学符号
+$\mathbb{R}$    &  实数集 \\
+$\mathbb{N}$    &  自然数集 \\
+$\mathcal{D}$   &  数据集 \\
+$\mathcal{L}$   &  损失函数 \\
+
+% 常用符号
+$x$             &  输入数据 \\
+$y$             &  输出结果 \\
+$f(\cdot)$      &  映射函数 \\
+$\theta$        &  模型参数 \\
+
+% 缩写说明
+AI              &  人工智能 (Artificial Intelligence) \\
+ML              &  机器学习 (Machine Learning) \\
+DL              &  深度学习 (Deep Learning) \\
+CNN             &  卷积神经网络 (Convolutional Neural Network) \\
+GAN             &  生成对抗网络 (Generative Adversarial Network) \\
+GUI             &  图形用户界面 (Graphical User Interface) \\
+
+% 根据实际需要添加更多符号
+% ...
+
+\end{notation}
+
+\mainmatter
+
+% ========================================
+% 论文正文部分：各章节内容
+% ========================================
+
+% 第一章：绪论
+\input{chapters/chapter1}
+
+% 第二章：相关工作
+\input{chapters/chapter2}
+
+% 第三章：视觉数据构造范式
+\input{chapters/chapter3}
+
+% 第四章：GUI
+\input{chapters/chapter4}
+
+% 第五章：世界知识
+\input{chapters/chapter5}
+
+% 第六章：结论
+\input{chapters/chapter6}
+
+% ========================================
+% 如果需要引用所有参考文献，取消下面的注释
+% \nocite{*}
+% ========================================
+
+% ========================================
+% 后置部分：参考文献
+% ========================================
+\backmatter
+
+% 使用 bibtex 时用以下命令
+% \bibliography{mythesis}
+
+% 使用 biblatex 时用以下命令
+\printbibliography
+
+\end{document}
