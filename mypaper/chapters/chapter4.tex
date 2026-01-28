@@ -1,35 +1,126 @@
 % 第四章：GUI
-\chapter{图形用户界面合成}
+\chapter{面向GUI的视觉语言模型能力提升方案}
 
-\section{GUI数据特点}
+\section{背景}
+随着多模态大语言模型（Multimodal Large Language Model, MLLM）在通用视觉理解任务上的快速突破，面向真实设备自动化的\textbf{UI Agent}逐渐成为落地应用的重要方向。与通用场景不同，移动端与桌面端GUI具有\textbf{控件密集、文字细小、布局强约束、交互强状态}等特征，使得模型在“看懂屏幕”这一前置能力上面临更高门槛。
 
-% 在这里撰写GUI数据特点
+在UI Agent的感知--决策闭环中，\textbf{Referring（指代识别）}与\textbf{Grounding（定位/落地）}是最基础也最关键的两项能力：
+\begin{itemize}
+  \item \textbf{Referring}：给定屏幕区域的边界框（Bounding Box, bbox），模型需要输出该区域控件的功能、文本或属性描述，例如输入“bbox [10,10,50,50]”，输出“这是搜索按钮”。
+  \item \textbf{Grounding}：给定自然语言指令，模型需要在屏幕截图中定位对应控件并输出其bbox，例如输入“点击登录”，输出“bbox [100,200,300,400]”。
+\end{itemize}
 
-\section{GUI合成方法}
+尽管通用MLLM已具备一定视觉理解能力，但在GUI垂直领域仍存在三类典型瓶颈：\textbf{（1）细粒度定位偏差}（Small Widgets像素级坐标难以稳定）、\textbf{（2）分辨率敏感}（竖屏长宽比导致缩放后细节与文字丢失）、\textbf{（3）语义与布局割裂}（检测模型缺语义、语言模型缺位置感）。为此，本章提出一套以\textbf{多源数据工程}为核心、结合\textbf{双阶段混合微调（DMT）}与\textbf{高分辨率架构优化}的系统方案，目标是在Top 200应用场景中实现Referring准确率$\ge 95\%$、单控件Grounding准确率$\ge 95\%$。
 
-% 在这里撰写GUI合成方法
+\section{数据工程：多源融合与高质量构建}
+数据是GUI理解能力提升的基石。本节围绕“\textbf{多源融合}”与“\textbf{高质量构建}”两条主线，构建开源清洗数据、闭源精标数据与合成数据相互补位的训练语料体系，并通过闭环流程保证数据质量可控、可迭代。
 
-\subsection{布局生成}
+\subsection{数据闭环流水线概览（对照Pipeline图）}
+图\ref{fig:gui_data_pipeline}给出了本文采用的多模态数据合成闭环流程。该流程以“\textbf{原生图片}”与“\textbf{生成图片}”为输入端，通过\textbf{数据初始化}对样本进行统一格式化与元信息补全；随后引入两条互补标注路径：一方面利用大模型自动生成\textbf{细粒度描述}与候选标注，另一方面由人工补充\textbf{相关上下文}（页面目的、任务背景、交互前置条件等），共同形成可用于监督学习的结构化样本。
 
-% 布局生成相关内容
+在完成初始标注后，系统对数据进行\textbf{相关性与准确性过滤}：对不满足规范（如bbox不紧致、指令与控件不匹配、OCR文本错误）的样本进行剔除或回流；当质量不足时，样本会被送回“文生图”分支进行\textbf{重写/重生成}，以修正布局错误或补足长尾指令表达。
 
-\subsection{组件设计}
+通过过滤的数据进入“\textbf{任务导向的原子问题生成}”阶段，核心思想是将UI Agent能力拆解为三类可监督的原子任务：
+\begin{itemize}
+  \item \textbf{感知类}：围绕bbox与OCR生成定位、识别等任务，对齐Grounding与细粒度检测需求；
+  \item \textbf{理解类}：基于组件属性与上下文生成解释、问答与描述任务，对齐Referring与语义理解需求；
+  \item \textbf{推理类}：围绕工具调用、思维链式规划与预期结果生成训练样本，支撑复杂交互决策。
+\end{itemize}
 
-% 组件设计相关内容
+最后，数据进入\textbf{数据增强}与\textbf{数据校验}阶段：增强侧从细粒度、难度、指令多样性三方面提升覆盖面与鲁棒性；校验侧引入模型校验与工具校验（如OCR一致性、bbox合法性、关系图完整性）以稳定数据分布。通过该闭环，我们实现数据的持续迭代：更强模型产出更高质量伪标注，进一步反哺训练，形成“数据--模型--数据”的正反馈。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.68\linewidth]{figures/chapter3/pipeline.pdf}
+  \caption{多模态数据合成闭环Pipeline（数据初始化--标注--过滤--原子问题生成--增强与校验--回流重写）。}
+  \label{fig:gui_data_pipeline}
+\end{figure}
+
+\subsection{开源数据清洗与重构：基于RICO与CLAY}
+开源数据在规模与多样性上具备优势，但往往存在噪声、布局失真与语义标签不一致的问题。以RICO为代表的GUI数据集包含大量移动端界面及其视图层级（View Hierarchy），然而原始数据中存在不可见节点、错误标注、层级断裂等现象，直接用于训练会导致模型学习到错误的几何与语义先验。本文采用CLAY（Clean Layout for Android UI）思路对RICO进行清洗与增强，主要包括：
+\begin{itemize}
+  \item \textbf{噪声过滤与层级修复}：剔除包含“INVALID”标签、尺寸为0、透明不可见等节点，并修复视图树结构，确保层级关系可用于后续关系建模与样本构造。
+  \item \textbf{语义标签映射}：将原始Android View类名映射为更具语义的通用组件类别，以减少类别碎片化带来的学习难度，例如将\texttt{android.widget.\allowbreak EditText}及其子类统一映射为\texttt{TEXT\_INPUT}，将\texttt{FloatingActionButton}映射为\texttt{BUTTON}。
+  \item \textbf{任务Prompt构造}：在清洗后的结构化数据上生成标准化监督样本，包括：
+    \begin{itemize}
+      \item \textbf{Grounding}：输入自然语言指令（如“点击右上角的搜索图标”）与页面截图，输出归一化bbox；
+      \item \textbf{Referring}：输入bbox与页面截图，输出组件类别、功能与可见文本（可结合OCR字段）。
+    \end{itemize}
+\end{itemize}
+通过上述处理，开源数据为模型提供了覆盖广的GUI布局先验与基础交互语义，但在中文场景、复杂交互与状态理解上仍存在缺口，需要闭源数据与合成数据补齐。
+
+\subsection{闭源高质量精标：V100/V231数据集}
+针对开源数据在中文语境与应用生态上的不足，本文构建了覆盖国内Top 200应用的内部精标数据集（代号V100/V231），覆盖电商、社交、出行、办公等高频场景。数据构建强调“\textbf{可训练}”与“\textbf{可评测}”的一致性：
+\begin{itemize}
+  \item \textbf{采集与覆盖}：在真实设备与真实分辨率下采集截图，保留竖屏长宽比带来的细节密度，确保与上线环境一致。
+  \item \textbf{标注字段}：为每个控件标注\texttt{label\_class}、\texttt{bbox}（$[y_{\min},x_{\min},y_{\max},x_{\max}]$归一化坐标）、\texttt{content}（OCR文字）等核心字段，并补充可交互性、状态等属性（见下一节规范）。
+  \item \textbf{数据分层}：V100作为早期验证集（约1000张精标截图），聚焦输入框、开关、弹窗等高频交互组件；V231在V100基础上二次校验，剔除定义不清的控件并增加\textbf{负样本}（不可点击区域/误导性区域），以提升Grounding的判别能力。
+\end{itemize}
+
+\textbf{OCR增强}是闭源数据的重要补强环节。为降低通用OCR在艺术字体与复杂背景下的误识别与“幻觉”，本文引入更高精度的文本抽取与校验流程，生成用于训练的高质量中文文本标注，从而让模型在Referring任务中能够稳定对齐“控件外观--文字内容--交互语义”三者。
+
+\subsection{平台标注规范v1.5.0：分类学、关系图谱与状态向量}
+为突破“只标类别与坐标”的传统检测范式限制，本文建立了标准化的平台屏幕控件标注规范（v1.5.0），在视觉边界之外显式引入\textbf{控件关系图谱}与\textbf{状态向量}，为Referring与复杂意图导航提供深层语义监督。
+
+\paragraph{细粒度控件分类学（Taxonomy）}
+我们构建了覆盖移动端原子级交互单元与容器级逻辑单元的23类核心控件体系，强调“\textbf{原子粒度优先}”，以减少布局强相关类别造成的歧义。分类同时覆盖基础元素（BUTTON/ICON/\allowbreak TEXT/IMAGE）、输入与开关（TEXT\_INPUT/\allowbreak SWITCH等）以及复合容器（NAVIGATION\_BAR/\allowbreak TAB\_BAR/POPUP等）。
+
+\paragraph{语义关系建模（Directed Relationship Graph）}
+在标注中显式构建有向关系图，典型关系包括：
+\begin{itemize}
+  \item \textbf{标签--控件绑定}：外部注释文本$T_{label}$指向目标控件$C_{target}$，用于学习“点击输入用户名的位置”等指令；
+  \item \textbf{值--控件绑定}：当前值文本$T_{value}$指向父控件，帮助模型区分“输入/修改/清空”等操作意图；
+  \item \textbf{功能依赖}：例如弹窗关闭按钮指向弹窗容器，使模型更稳定地完成“关闭广告/关闭弹窗”的导航与定位。
+\end{itemize}
+
+\paragraph{多维属性与状态向量（Attributes \& State Vectors）}
+为支持UI Agent决策，我们为bbox附加交互状态三元组：\textbf{Activated}（是否被选中/开启）、\textbf{Interactable}（是否可交互/置灰）、\textbf{Filled}（是否已填选）。同时对ICON类补充\textbf{图标释义}（如“房子$\rightarrow$主页”）并对按钮/输入框记录\textbf{内部文本}，增强视觉编码与文本空间对齐。
+
+\subsection{人机协同标注与质检：Human-in-the-Loop流程}
+为在成本可控的前提下获取高精度标注，本文采用基于Label Studio的半自动化标注工作流，并与图\ref{fig:gui_data_pipeline}中的“标注--过滤--校验”环节一致：
+\begin{itemize}
+  \item \textbf{OCR预标注}：对截图进行预推理，自动生成文本类控件的候选bbox与内容，标注员以“确认/微调”为主，从而显著提升效率。
+  \item \textbf{交互式修正与紧致框原则}：规范要求bbox尽量贴合UI元素可见边缘，避免背景干扰；对于存在Padding导致“点击区域大于视觉区域”的控件，优先标注视觉核心区域，以更贴近人类视觉直觉与模型学习目标。
+  \item \textbf{一致性校验}：设置关系图完整性检查（外部注释必须有指向目标）、bbox合法性检查与OCR一致性检查，降低孤立节点与错误文本对训练的负面影响。
+\end{itemize}
+
+\section{模型架构与训练策略}
+在数据工程基础上，本文进一步从架构与训练两方面优化模型的高分辨率感知与坐标生成能力，以满足GUI小目标定位与中文文本识别的需求。
+
+\subsection{视觉编码器与分辨率自适应：AnyRes机制}
+GUI截图包含密集文字与小图标，直接缩放到固定正方形输入会导致细节损失。本文采用动态分辨率（AnyRes）机制：将原始高分辨率截图按固定网格切分为多个局部Patch，同时保留一张缩放后的全图捕获全局布局；随后在Embedding层拼接局部与全局特征并输入语言模型。该设计使模型既能“看清”角落里的返回/关闭图标，又能“理解”页面整体结构，从而提升Grounding的稳定性。
+
+\subsection{坐标表示与定位Token设计：文本化坐标生成}
+为充分利用自回归语言模型的生成能力，本文采用文本化坐标表示，将bbox输出为$[0,1000]$范围的归一化整数序列（如\texttt{<box>250,500,\allowbreak ...</box>}）。同时引入\texttt{<|box\_start|>}、\texttt{<|box\_end|>}、\texttt{<|ref\_start|>}等特殊Token，区分普通文本生成与定位任务生成，降低坐标串与自然语言串的混淆。
+
+\subsection{双阶段混合微调（DMT）：GUI注入与通用对齐}
+为兼顾GUI能力与通用对话推理能力，本文采用双阶段混合微调（Dual-stage Mixed Tuning, DMT）策略：
+\begin{itemize}
+  \item \textbf{阶段一：GUI领域知识注入（Domain Adaptation）}。训练数据100\%为GUI相关数据（开源清洗数据+闭源精标数据+OCR密集任务），以bbox预测与文本对齐为主；训练中冻结视觉编码器大部分参数，重点微调语言模型部分，使模型快速获得稳定的屏幕元素感知与坐标生成能力。
+  \item \textbf{阶段二：通用能力恢复与对齐（General Alignment）}。在保持GUI能力的同时引入通用多模态对话数据（约80--90\%），并回放阶段一的高质量GUI样本（约10--20\%）。通过调节混合比例$k$平衡灾难性遗忘与能力冲突，实践表明保留约15--20\%的GUI回放数据即可稳定维持定位精度。
+\end{itemize}
 
 \section{实验与评估}
+\subsection{评测任务与指标}
+围绕Referring与Grounding两项核心能力，本文采用控件级评测作为主要指标：
+\begin{itemize}
+  \item \textbf{Referring准确率}：给定目标bbox，模型输出的类别/功能/文本描述与标注答案一致的比例；对于含OCR文本的样本，额外关注关键实体与短语的匹配正确率。
+  \item \textbf{Grounding准确率}：给定自然语言指令，模型预测bbox与标注bbox达到预设重叠阈值（如IoU$\ge\tau$）且命中目标控件的比例；同时统计在密集小控件场景下的误差分布（偏移量、误命中率）。
+\end{itemize}
+评测样本覆盖Top 200应用的高频页面与交互组件，包含中文文本、弹窗浮层与多状态控件等困难模式，以检验模型在真实分辨率与真实布局下的泛化能力。
 
-% 在这里撰写实验与评估
+\subsection{对比设置与消融维度}
+为验证各模块的有效性，实验设计从“数据--架构--训练”三个维度进行对比：
+\begin{itemize}
+  \item \textbf{数据维度}：开源清洗数据/闭源精标数据/合成数据的不同组合；是否引入负样本、关系图谱与状态向量。
+  \item \textbf{架构维度}：固定分辨率输入与AnyRes输入的对比；是否使用文本化坐标与定位专用Token。
+  \item \textbf{训练维度}：单阶段SFT与DMT两阶段策略对比；阶段二中GUI回放比例$k$对定位精度与通用对话能力的影响。
+\end{itemize}
+消融实验重点关注：Small Widgets定位稳定性、中文OCR相关Referring的准确性、以及长屏缩放带来的细节丢失问题是否得到缓解。
 
-\subsection{实验设置}
-
-% 实验设置相关内容
-
-\subsection{结果分析}
-
-% 结果分析相关内容
+\subsection{误差分析与讨论}
+综合实验结果可观察到三类主要误差来源：\textbf{（1）极密集区域的近邻混淆}（图标间距过小导致误点相邻控件）、\textbf{（2）文本与控件关系未显式建模时的语义歧义}（如“用户名/手机号”标签与输入框的绑定不稳定）、\textbf{（3）跨状态控件的动作选择偏差}（开关已开启仍重复“打开”）。对应地，本章的数据工程与架构设计提供了针对性缓解：AnyRes提升局部细节分辨率；关系图谱与状态向量降低语义歧义；负样本与工具校验减少“看起来像可点但不可点”的误命中。
 
 \section{本章小结}
-
-% 在这里撰写本章小结
+本章面向GUI场景提出了一套提升视觉语言模型屏幕理解能力的系统方案。我们首先明确Referring与Grounding两项核心能力及其在GUI领域的瓶颈；随后以多源数据工程为重点，构建了开源清洗、闭源精标与合成数据融合的闭环流水线，并通过分类学、关系图谱与状态向量提供更强语义监督；最后在AnyRes高分辨率架构与DMT双阶段混合微调策略的配合下，实现对细粒度定位与中文语义理解的协同提升，为后续UI Agent的任务规划与执行奠定基础。
 
