@@ -2,126 +2,330 @@
 \chapter{世界知识能力提升方案}
 \label{chap:world_knowledge}
 
-\section{引言：从视觉描述到世界知识理解}
-近年来，大型视觉语言模型（Vision--Language Model, VLM）通过在海量图文对上的预训练，习得了强大的视觉感知与语言生成能力。然而，这类能力往往停留在“\textbf{视觉层面的描述}”，即对颜色、形状、人物姿态等可见信息进行总结，难以进一步回答“图像背后\textbf{隐含的事实、概念与关系}”。
+\section{背景和挑战}
+近年来，大型视觉语言模型（Vision--Language Model, VLM）通过在海量图文对上的预训练，习得了强大的视觉感知与语言生成能力。然而，这类能力往往停留在"\textbf{视觉层面的描述}"，即对颜色、形状、人物姿态等可见信息进行总结，难以进一步回答"图像背后\textbf{隐含的事实、概念与关系}"。
 
-本文将\textbf{世界知识（World Knowledge）}定义为对物理世界、社会文化、历史事件、科学技术等领域的事实、概念、关系与常识的综合掌握，其本质是一个庞大且交织的知识网络。以经典电影海报为例，缺乏世界知识的模型可能只能描述“画面中有一男一女张开手臂”；而具备世界知识的模型应能进一步识别具体人物与作品，并关联到导演、时代背景与象征含义，从而实现从“看见”到“理解”的跃迁。
-
-\section{背景与挑战：世界知识注入的三大困境}
-提升VLM的世界知识能力并非简单“增加数据量”即可解决，核心困难可归纳为三类：
-\begin{itemize}
-  \item \textbf{知识整合与收集（Integration）}：世界知识分散于海量文本语料或结构化图谱中，如何将其转化为VLM可学习、可泛化的监督信号，是数据工程与训练范式的共同挑战。
-  \item \textbf{视觉与语言对齐（Alignment）}：文本侧可能已掌握概念与属性（如某类动物的习性），但视觉编码器未必能将\textbf{具体实例（Specific Instance）}与\textbf{抽象描述（Abstract Description）}精确对齐，导致“知道但看不出来”或“看出来但说不对”的错配。
-  \item \textbf{多跳推理能力（Reasoning）}：复杂问题往往需要“识别$\rightarrow$检索$\rightarrow$筛选”的多步推理链路，例如“图中导演拍摄的获奥斯卡奖电影是哪部？”要求模型先识别导演实体，再查询其作品集，最后做条件筛选得到唯一答案。
-\end{itemize}
-
-\section{方法总览：分类体系与三元组QA数据策略}
-针对上述挑战，本文提出一套以数据闭环为核心的世界知识增强方案，主要包括：
-\begin{itemize}
-  \item \textbf{结构化知识体系}：构建覆盖自然景观、人物、品牌商标等7大领域、40个子类的分层分类框架，保证覆盖面与可扩展性。
-  \item \textbf{三元组QA数据策略}：设计RecQA（识别）、KnowQA（纯知识）、FinalQA（推理）三种互补数据格式，用“视觉锚定$\rightarrow$知识注入$\rightarrow$推理贯通”的方式实现深层对齐。
-  \item \textbf{基于CoT的性能优化}：通过引入显式推理过程（Think/Chain-of-Thought），缓解多任务训练冲突，显著提升复杂问题的FinalQA指标。
-  \item \textbf{迭代式数据构建}：采用多批次、多来源模型参与生成，并通过Badcase Mining定向补齐薄弱实体，形成可持续迭代的闭环。
-\end{itemize}
-
-\subsection{知识类别框架（Category Framework）}
-为保证世界知识的覆盖面与长尾可扩展性，本文构建分层分类体系，包含7个大类与40个小类，代表性大类如下：
-\begin{itemize}
-  \item \textbf{自然景观}：河流、山脉、森林、沙漠等；
-  \item \textbf{生物}：知名动物、植物、真菌等；
-  \item \textbf{建筑景观}：地标建筑、宗教场所等；
-  \item \textbf{人物}：政治人物、演艺明星、历史名人等；
-  \item \textbf{品牌商标}：商业Logo、产品包装等；
-  \item \textbf{文化娱乐}：电影、游戏、动漫、书籍等；
-  \item \textbf{科学技术}：特定设备、科学现象等。
-\end{itemize}
-该框架一方面提供“数据采样的坐标系”（便于覆盖均衡与长尾挖掘），另一方面也作为训练与评测的统计维度，用于分析不同知识域的对齐难度与误差模式。
-
-\section{数据工程：闭环Pipeline与质量控制（对照Pipeline图）}
-世界知识增强的关键在于“把分散知识变成可学习的多模态监督”。本文在图\ref{fig:wk_data_pipeline}所示的\textbf{多模态数据合成闭环Pipeline}基础上，构建面向世界知识的自动化数据生产流水线：以“原生图片（真实收集）”与“生成图片（必要时的合成/重写）”为输入端，经由数据初始化、自动/人工标注、过滤、原子问题生成、增强、校验与回流重写，得到可用于多任务训练的最终合成数据。
+本文将\textbf{世界知识（World Knowledge）}定义为对物理世界、社会文化、历史事件、科学技术等领域的事实、概念、关系与常识的综合掌握，其本质是一个庞大且交织的知识网络。图\ref{fig:wk_case}展示了一个直观的对比案例：对于经典电影《泰坦尼克号》的标志性场景，缺乏世界知识的模型仅能给出浅层描述——"一个男人和一个女人站在船头"；而具备世界知识的模型则能识别出这是1997年上映的电影《泰坦尼克号》，由詹姆斯·卡梅隆执导，主演是莱昂纳多·迪卡普里奥和凯特·温斯莱特，并进一步理解这一场景描绘了主角杰克和露丝在船头"飞翔"的浪漫时刻，象征着自由和爱情，以及这部电影在全球取得的巨大商业成功和文化影响力。这种从"看见"到"理解"的跃迁，正是世界知识赋予模型的核心能力。
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.68\linewidth]{figures/chapter3/pipeline.pdf}
-  \caption{多模态数据合成闭环Pipeline在世界知识数据构造中的映射。}
+  \includegraphics[width=0.7\linewidth]{figures/chapter5/case1.png}
+  \caption{有无世界知识的模型响应对比。\textbf{无世界知识}："一个男人和一个女人站在船头。"\textbf{有世界知识}："这是1997年上映的电影《泰坦尼克号》的经典海报，由詹姆斯·卡梅隆执导，主演是莱昂纳多·迪卡普里奥和凯特·温斯莱特……"}
+  \label{fig:wk_case}
+\end{figure}
+
+然而，提升VLM的世界知识能力并非简单"增加数据量"即可解决，世界知识注入在实践中往往同时受到\textbf{三大困境}的制约：
+\begin{itemize}
+  \item \textbf{知识整合与收集（Integration）}：目前的世界知识通常存在于庞大的文本语料库或结构化的知识图谱中，知识源虽然丰富，但要从中抽取并组织成\textbf{可被模型学习}的训练样本并不容易。其难点体现在：知识高度分散且表达形式异构（不同来源对同一实体的称呼、粒度与侧重点不一致），同时存在噪声与时效性差异；此外，直接“搬运知识”难以保证与视觉内容可验证对应，导致构造出的样本在训练时容易引入错误监督或不可学习信号。
+  \item \textbf{视觉与语言对齐（Alignment）}：大语言模型往往已经具备一定的世界知识能力，但视觉侧未必能将图像中的\textbf{具体实例（Specific Instance）}与文本知识中的\textbf{抽象描述（Abstract Description）}精确关联。例如，图像中出现一只特定的鸟，文本知识可能包含该鸟类的学名、习性与分布范围，但模型难以将这些抽象属性稳健地“落到”当前图像实例上，从而出现“知道但看不出来”或“看出来但说不对”的错配。更进一步，同一实体在不同视角、光照、遮挡或风格化图像中呈现差异显著，也会放大对齐难度并影响泛化能力。
+  \item \textbf{多跳推理能力（Reasoning）}：许多复杂世界知识问题需要模型进行多步推理，将多个知识点链接后再得出结论。例如，回答“图中这位导演拍摄的、获得奥斯卡最佳影片的电影是哪部？”，模型需要先\textbf{识别}图中人物为某位导演，再\textbf{检索/回忆}其作品列表，最后按“获奥斯卡最佳影片”这一条件进行\textbf{筛选}得到唯一答案。该过程要求模型同时具备稳定的实体识别、可控的知识调用以及可执行的条件推断链路，对当前VLM仍是显著挑战。
+\end{itemize}
+
+\section{知识类别框架}
+世界知识增强的首要前提，是建立一个\textbf{可覆盖、可扩展、可操作}的知识类别框架。若缺乏统一的类别坐标系，世界知识将以“零散事实”的形式分布在不同来源中，不仅难以进行系统性采样与补全，也难以在训练与评测中对模型能力进行可解释的归因分析。因此，本文构建分层分类体系，包含7个大类与40个小类（如图\ref{fig:wk_class}所示），用于约束数据构造过程并为后续框架化的数据流水线提供统一接口。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.9\linewidth]{figures/chapter5/wk_class.png}
+  \caption{世界知识类别框架（7个大类与40个小类）。}
+  \label{fig:wk_class}
+\end{figure}
+
+类别制定的作用与必要性主要体现在三方面：
+\begin{enumerate}
+  \item \textbf{指导词条生成与采样}：在每个子类的定义约束下，词条生成能够被限定在明确语义边界内，避免“概念混淆”（如将作品名误作人物名）与“粒度漂移”（如将系列与单部作品混用），从而提升词条集合的可控性与可复用性。
+  \item \textbf{支持长尾覆盖与迭代补全}：按子类统计实体与样本分布，可显式暴露稀缺类别与薄弱子类，便于后续定向补齐与均衡采样。
+  \item \textbf{作为训练/评测的统计维度}：类别标签为分析不同知识域的对齐难度、误差模式与泛化瓶颈提供了可解释的分组依据。
+\end{enumerate}
+
+为保证后续“词条生成$\rightarrow$图片收集$\rightarrow$标注与QA构造”的一致性，本文为\textbf{每个大类与子类}均给出可操作的边界定义，定义内容包括：\textbf{覆盖范围}（该类包含哪些实体/概念）、\textbf{排除规则}（易混淆但不属于该类的情况）、\textbf{命名规范}（中英文/别名/译名的处理方式）以及\textbf{典型示例}（用于提示生成与校验）。例如，\textbf{建筑景观/地标建筑}强调“可定位的实体建筑与场所”，并排除“抽象建筑风格”；\textbf{文化娱乐/电影}以“独立作品”为基本粒度，区分系列名与单部片名；\textbf{品牌商标/商业Logo}强调“可识别的品牌标记”，并区分公司主体与产品线名称。
+
+在该框架下，代表性大类如下：
+\begin{itemize}
+  \item \textbf{自然景观}：自然形成的地理实体与景观要素，强调可定位与可辨识性（如河流、山脉、森林、沙漠等）。
+  \item \textbf{生物}：具有明确物种/类群归属的生命体实体，强调可用学名/别名统一归并（如知名动物、植物、真菌等）。
+  \item \textbf{建筑景观}：人造建成环境中的可识别实体，强调“具体建筑/场所”而非抽象风格（如地标建筑、宗教场所等）。
+  \item \textbf{人物}：具有可追溯身份的真实人物实体，强调同名消歧与多语别名对齐（如政治人物、演艺明星、历史名人等）。
+  \item \textbf{品牌商标}：可被视觉识别的品牌标记与商业符号，强调品牌与产品的边界区分（如商业Logo、产品包装等）。
+  \item \textbf{文化娱乐}：文化作品及其衍生实体，强调作品粒度与系列关系的规范化（如电影、游戏、动漫、书籍等）。
+  \item \textbf{科学技术}：科技相关的可识别对象或现象，强调术语标准化与概念边界（如特定设备、科学现象等）。
+\end{itemize}
+该框架为后续章节中的词条生成、图片收集与QA构造提供了稳定、可复用的“坐标系”，使世界知识数据构造从零散经验转为可控流程，并为后续框架的建立与扩展提供结构化支撑。
+
+\section{数据工程：世界知识数据构造Pipeline}
+世界知识增强的关键在于"把分散知识变成可学习的多模态监督"。本文设计了如图\ref{fig:wk_data_pipeline}所示的世界知识数据构造Pipeline，该流程包含词条生成与图片收集、图片Caption生成、图文相关性过滤、QA对生成与QA对质量过滤等核心环节，形成从知识源到可训练数据的完整转化路径。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.75\linewidth]{figures/chapter5/wk_pipeline.png}
+  \caption{世界知识数据构造Pipeline。}
   \label{fig:wk_data_pipeline}
 \end{figure}
 
 \subsection{词条生成与图片收集：从知识域到视觉证据}
-对应图\ref{fig:wk_data_pipeline}顶部的“原生图片/生成图片”，本文首先在分类框架下为每个子类生成词条集合，并收集高清图片作为视觉证据：
+对应图\ref{fig:wk_data_pipeline}中的"词条生成和图片收集"环节，本文首先在前述知识类别框架的约束下，为每个子类生成可控的词条集合，并围绕词条自动化收集图片，以形成“实体$\leftrightarrow$视觉证据”的锚点，为后续图文对齐与知识学习打下基础：
 \begin{itemize}
-  \item \textbf{热门与长尾词条}：利用大模型为每个子类生成热门实体与“人类感兴趣的偏门实体”，提高知识覆盖的同时避免仅学习头部概念。
-  \item \textbf{多源图像收集}：通过公开数据集与搜索渠道收集高清图片，并保留来源、分辨率、版权与时间等元信息，便于后续质检与去重。
+  \item \textbf{类别制定}：基于前述分类体系的定义边界，确定每个子类的覆盖范围与排除规则，从源头保证后续词条生成与样本采样的语义一致性与可追溯性。
+  \item \textbf{词条生成}：词条生成采用两种互补方式。\textbf{其一}，使用大模型依据类别/子类定义生成该子类中“最热门、最具公众关注度”的核心词条（通常每类约150$\sim$200个），以覆盖主流高频知识；\textbf{其二}，人工补充部分\textbf{新近出现}或\textbf{相对冷门}但具有研究价值的词条，以提升长尾覆盖并缓解仅学习头部概念带来的偏置。
+  \item \textbf{图片收集}：针对每个词条，本文实现了一个自动化的图片收集agent脚本，可调用Google图片搜索并自动抓取该词条返回结果中的前100$\sim$500张图片。该步骤将抽象词条落到具体视觉实例上，为后续“图像$\leftrightarrow$词条$\leftrightarrow$知识”对齐提供充分样本基础；同时保留来源、分辨率、时间等元信息，以支持去重与质量追踪。
 \end{itemize}
-在这一阶段，数据工程的目标是“\textbf{实体可控}”与“\textbf{图像高质量}”：实体可控保证知识监督可追溯，图像高质量保证视觉侧对齐不被噪声主导。
+在这一阶段，数据工程的目标是"\textbf{实体可控}"与"\textbf{图像高质量}"：实体可控保证知识监督可追溯，图像高质量保证视觉侧对齐不被噪声主导。
 
-\subsection{数据初始化：统一样本结构与知识锚点}
-对应Pipeline中的“数据初始化”，本文将原始样本统一为结构化记录，核心字段包括：实体ID（词条）、类别路径（大类/小类）、图像ID与来源、候选别名（同义词/译名）、以及可选的外部知识锚点（如百科条目标题）。数据初始化的目标是为后续自动标注与过滤提供稳定接口，并支持“以实体为中心”的去重与统计。
+\subsection{图片Caption生成：融合视觉描述与知识背景}
+对应图\ref{fig:wk_data_pipeline}中的"图片CAPTION生成"环节，本文为每张自动抓取的图片生成结构化caption，其作用不仅是“生成更丰富的描述”，更是为后续多个关键环节提供\textbf{可依赖的中间表征}：\textbf{(1) 图文相关性过滤}需要caption帮助模型判断图片是否真的与词条匹配；\textbf{(2) 知识要素提取}可从caption中抽取实体属性、别名与背景事实；\textbf{(3) QA对生成}可将caption作为问题构造与答案验证的上下文依据。
 
-\subsection{自动标注与QA生成：从描述到三元组任务}
-对应Pipeline中的“大模型标注生成详细描述/人工标注收集相关上下文”，本文采用“自动为主、人工兜底”的方式生成两类标注：
+尤其在相关性过滤场景下，由于图片是自动抓取的，实际会混入与词条无关的图片（例如同名歧义、检索噪声、相似外观实体等）。仅依赖视觉模型直接判别相关性容易受限于大模型自身的识别能力与先验偏差，因此本文将caption与词条知识一并提供给过滤模型作为判据，从而提升过滤的稳健性与可解释性。
+
+图\ref{fig:wk_caption_case}给出了caption数据的一个示例。可以看到，caption不仅描述了画面中的关键视觉元素（两名士兵、英军制服、草地与田野等），还补充了与该视觉内容强相关的背景知识（电影名称、上映年份、导演、拍摄手法与剧情要点）。这类“视觉描述+背景知识”的融合表达，一方面为后续相关性过滤提供了更可验证的判断依据，另一方面也为知识要素提取与QA构造提供了可复用的文本上下文。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{figures/chapter5/case2.png}
+  \caption{Caption数据示例（电影《1917》相关画面）。}
+  \label{fig:wk_caption_case}
+\end{figure}
+
+\begin{quote}\small
+\textbf{PROMPT：}请详细观察这张图片，描述其中的主要内容，并提供相关的背景知识。
+\par
+\textbf{RESPONSE：}这张图片来自电影《1917》（2019）。在图片中可以看到两名士兵穿着英军制服，躺在草地上。背景是一片开阔的田野，远处有一些模糊的植被和空旷的天空。
+\par
+《1917》是一部关于第一次世界大战的战争片，由萨姆·门德斯执导。这部电影以其独特的拍摄手法闻名，采用了一种类似单镜头的方式，使观众感觉仿佛是在实时跟随士兵的旅程。影片的情节围绕着两名年轻的英国士兵，他们接到一项看似不可能完成的任务：穿越敌方领土，传递一条至关重要的信息，以阻止一场可能导致1600人阵亡的伏击。
+\par
+影片的视觉效果和沉浸式体验获得了极高的评价，尤其是在构建紧张感和真实感方面。电影中展现了战争的残酷和士兵们在战场上的勇气与牺牲，获得了很多观众和评论家的好评。
+\end{quote}
+
+\subsection{图文相关性过滤：保证视觉-知识对齐质量}
+对应图\ref{fig:wk_data_pipeline}中的"图文相关性过滤"环节，本文通过以下方式保证数据质量：
 \begin{itemize}
-  \item \textbf{深度视觉描述（Image Captioning）}：使用先进VLM为每张图片生成包含背景知识的描述，不仅覆盖可见内容，还补充与实体相关的历史、文化或技术背景，从而增强“视觉特征$\leftrightarrow$知识”关联强度。
-  \item \textbf{三元组QA生成（RecQA/KnowQA/FinalQA）}：为了解耦感知与推理，本文构造三类互补问答对：
-    \begin{itemize}
-      \item \textbf{RecQA（Recognition QA）}：依赖视觉识别，问题围绕“这是谁/这是什么/来自哪里”，答案为实体或关键属性，用于将视觉特征锚定到实体；
-      \item \textbf{KnowQA（Knowledge QA）}：不依赖视觉输入，仅基于文本知识回答，但与图片实体强相关，用于注入背景知识并形成可检索的知识片段；
-      \item \textbf{FinalQA（Reasoning QA）}：需要“先识别再用知识推理”的一跳或多跳问题，用于打通RecQA与KnowQA形成的知识链路。
-    \end{itemize}
+  \item \textbf{相关性分数制定}：采用大模型进行判别，并设置1$\sim$5的离散相关性分数以刻画“图片$\leftrightarrow$词条”的匹配强度：5分表示完全相关（图片直接包含标签内容），4分表示高度相关（作品/组成部分等紧密关系），3分表示中等相关（可联想但不直接对应），2分表示低度相关（需较强推理才能建立联系），1分表示完全不相关。模型在输出分数时同时给出简要理由，并采用固定格式（如“相关性分数:[分数]”）便于程序解析与自动化处理。
+  \item \textbf{阈值化过滤与尽可能保留}：考虑到大模型判别仍存在误差，本文并非“一刀切”地仅保留最高分样本，而是通过设定分数阈值与抽样复核策略，尽可能保留潜在相关图片（如4分、部分3分样本），以在覆盖率与噪声控制之间取得平衡。过滤后的样本将进入后续QA构造，从源头降低“错图错标”导致的对齐噪声。
 \end{itemize}
 
-将三类QA映射回Pipeline的“任务导向原子问题生成”，可对应为：RecQA偏\textbf{感知/识别}，KnowQA偏\textbf{理解/知识}，FinalQA偏\textbf{推理/筛选}。这种拆分避免模型直接学习“图像$\rightarrow$最终答案”的捷径，从而提升泛化与可解释性。
-
-\subsection{过滤、增强与校验：质量优先的闭环迭代}
-对应Pipeline中的“过滤相关性/准确性”“数据增强”“数据校验/重写”，本文采用多级质控保证知识可靠与对齐有效：
+\subsection{QA对生成：从描述到三元组任务}
+对应图\ref{fig:wk_data_pipeline}中的"QA对生成"环节，为了解耦感知与推理，本文构造三类互补问答对：
 \begin{itemize}
-  \item \textbf{图文相关性过滤}：计算Image--Text相似度或一致性评分，剔除与实体无关的图片、错误匹配的caption与QA；
-  \item \textbf{QA质量过滤}：基于逻辑一致性、答案唯一性与可验证性制定评分标准，过滤逻辑不通、答案错误或过于主观的样本；
-  \item \textbf{数据增强}：围绕三项能力补强：
-    \begin{itemize}
-      \item \textbf{细粒度}：为同一实体生成多视角、多属性、多别名表达，提升鲁棒性；
-      \item \textbf{难度}：引入对比性问题、干扰选项与多跳链路，提升推理能力；
-      \item \textbf{指令多样性}：改写提问方式与对话语气，贴近真实用户提问分布。
-    \end{itemize}
-  \item \textbf{模型/工具校验与回流重写}：利用强模型复核答案一致性，并对低质量样本进行重写；必要时回流到“生成图片/重写”分支修复描述或问题，形成持续迭代的闭环。
+  \item \textbf{RecQA（Recognition QA）}：对应“模型\textbf{看见}图片”的能力，问题围绕“这是谁/这是什么/来自哪里”等识别任务，答案为实体或关键属性。其目标是将视觉特征稳定锚定到词条实体，解决“看到但叫不出名字”的问题。
+  \item \textbf{KnowQA（Knowledge QA）}：对应“模型\textbf{知道}关于该实体的世界知识”的能力，问题强调外部知识（历史、文化、科学属性等），形式上可不依赖视觉信息，但与图片实体强相关。其目标是向模型注入可泛化的背景事实，解决“认识了但不了解”的问题。
+  \item \textbf{FinalQA（Reasoning QA）}：对应“模型\textbf{理解}图片并能调用知识推理”的能力，问题需要“先识别再用知识推理”，可是一跳或多跳链路（如识别实体$\rightarrow$回忆知识$\rightarrow$条件筛选）。其目标是打通RecQA与KnowQA形成的知识链路，推动模型从“描述/识别”走向“解释/推断”。
 \end{itemize}
 
-\section{训练策略与Badcase迭代：从冲突到CoT对齐}
+三类QA分别对应不同能力层次：RecQA偏\textbf{感知/识别}，KnowQA偏\textbf{理解/知识}，FinalQA偏\textbf{推理/筛选}。这种拆分避免模型直接学习"图像$\rightarrow$最终答案"的捷径，从而提升泛化与可解释性。
+
+图\ref{fig:wk_qa_case}展示了三类QA在同一实体上的组织方式。RecQA首先要求模型从图像中识别出“戴着条纹围巾的光头男性角色”为格鲁（Gru）；KnowQA进一步询问与该实体相关、但必须依赖外部知识才能回答的问题（例如《神偷奶爸》系列的制作公司）；FinalQA则将二者合并为一步推理问题，使模型必须先完成识别，再调用知识得到最终答案。此外，为了促进可解释推理与避免“直接背答案”，本文还构造带有简要推理过程的FinalQA（FinalQA with CoT），要求模型先给出识别结论，再给出问题答案。
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.9\linewidth]{figures/chapter5/case3.png}
+  \caption{三类QA与FinalQA with CoT示例（格鲁/Gru）。}
+  \label{fig:wk_qa_case}
+\end{figure}
+
+\begin{quote}\small
+\textbf{RecQA（基于识别的问答对）}
+\par
+\textbf{PROMPT：}图片中戴着条纹围巾的光头男性角色是谁？
+\par
+\textbf{RESPONSE：}格鲁（Gru）。
+\par\medskip
+\textbf{KnowQA（仅基于知识的问答对）}
+\par
+\textbf{PROMPT：}格鲁（Gru）所在的《神偷奶爸》系列电影是由哪家公司制作的？
+\par
+\textbf{RESPONSE：}照明娱乐（Illumination）。
+\par\medskip
+\textbf{FinalQA（合并RecQA与KnowQA的一步推理问题）}
+\par
+\textbf{PROMPT：}图片中戴着条纹围巾的光头男性角色所在的系列电影是由哪家公司制作的？
+\par
+\textbf{RESPONSE：}照明娱乐（Illumination）。
+\par\medskip
+\textbf{FinalQA with CoT（带简要推理过程）}
+\par
+\textbf{PROMPT：}图片中戴着条纹围巾的光头男性角色是照明娱乐（Illumination）制作的哪部动画电影系列的主角？
+\par
+\textbf{RESPONSE：}图片中戴着条纹围巾的光头男性角色是格鲁（Gru），他是动画电影系列《神偷奶爸》的主角。
+\end{quote}
+
+\subsection{QA对质量过滤：确保训练数据可靠性}
+对应图\ref{fig:wk_data_pipeline}中的"QA对质量过滤"环节，本文采用多级质控保证知识可靠与对齐有效：
+\begin{itemize}
+  \item \textbf{规则约束与质量分数制定}：本文使用大模型对“问题--答案”对进行规则校验，重点约束：问题必须\textbf{同时依赖图像信息与外部知识}（既不能纯靠知识回答，也不能纯靠图像即可回答）；问题应当客观、明确且无歧义；答案必须唯一且不随时间变化；避免一个问题中同时询问两个子问题等。基于满足程度给出1$\sim$3的质量分数，其中3分表示完全合格，2分表示勉强合格但必须满足“唯一答案/时效稳定/单问题”这些关键约束，1分表示不合格。模型输出时给出简要理由，并采用固定格式（如“合格分数:[分数]”）便于解析。
+  \item \textbf{低质量过滤与回收}：对低分样本进行过滤或回收重写，重点剔除多答案、表述模糊、主观化或时效性强的问题，从而保证训练信号的可学习性与评测的一致性。
+\end{itemize}
+
+\section{训练与实验：从数据类型消融到CoT对齐}
+本节将训练策略与实验分析合并阐述：首先通过消融实验验证不同数据类型对世界知识能力的影响；随后针对推理指标“增益不显著甚至下降”的现象，引入带推理过程的Think/CoT数据并扩充数据分布，给出改进后的结果；最后报告在\textbf{Chinese SimpleVQA}与\textbf{SimpleVQA}上的最终性能，并分析与强基线之间的差距。
+
 \subsection{多阶段、多来源数据构建}
 训练过程中，本文采用多批次策略逐步扩充数据分布：
 \begin{itemize}
-  \item \textbf{Batch 1}：使用最强模型构建基础数据，确保高精度与高一致性；
-  \item \textbf{Batch 2}：引入不同模型生成以增加知识分布多样性，降低单一模型偏置；
-  \item \textbf{Badcase Mining}：针对评估中回答错误的实体与子类定向补充样本，修复薄弱点并提高长尾覆盖。
+  \item \textbf{Batch 1 / Part1}：使用最强模型构建第一批数据（Part1），确保高精度与高一致性；
+  \item \textbf{Batch 2 及后续 / Part12, Part123}：引入不同模型与更多未见词条扩充数据分布，降低单一模型偏置，并提升长尾覆盖。
 \end{itemize}
 
-\subsection{初始挫折：多任务数据冲突}
-在早期实验中，我们观察到一个反直觉现象：加入深度caption数据对识别指标有显著正向影响，但直接加入FinalQA并未稳定提升推理指标，甚至可能下降。其根源在于：若FinalQA仅提供\textbf{直接答案（Direct Answer）}，模型容易记忆“图像特征$\rightarrow$最终答案”的短路映射，跳过中间推导步骤，既不利于泛化，也会与RecQA的识别学习产生干扰。
+\subsection{实验一：数据类型消融与冲突分析}
+本实验的目的在于\textbf{确定不同数据类型对世界知识能力是否具有正向影响}，并定位可能的任务冲突。评测指标包括识别侧（Correct、Accuracy、F1）与推理侧（Correct、Accuracy、F1），分别对应Recognition与Final两类任务。
 
-\subsection{解决方案：引入Think/CoT显式推理数据}
-为缓解冲突并提升FinalQA泛化能力，本文将FinalQA升级为“\textbf{先输出推理过程，再输出最终答案}”的格式，即显式CoT（Chain-of-Thought）监督。推理过程通常包含：\textit{识别实体$\rightarrow$检索/回忆背景知识$\rightarrow$按条件筛选$\rightarrow$得到答案}。同时，我们增加KnowQA与FinalQA的“多问一图”密度，以强化知识连接并提高链路覆盖。
-
-\section{实验与分析}
-\subsection{基座模型、对比对象与评测基准}
-本文以\textbf{Ovis2.5\_9B}作为基座模型，并与开源代表模型进行对比。评测采用\textbf{SimpleVQA}与\textbf{Chinese SimpleVQA}两个基准，分别衡量模型在英文与中文语境下的事实性世界知识掌握程度。
-
-\subsection{评测指标}
-本文主要使用两类指标：
+实验结果如表\ref{tab:wk_ablation_part1}所示，可以得到以下结论：
 \begin{itemize}
-  \item \textbf{Recognition Accuracy}：评估模型能否正确识别物体/人物/品牌等实体；
-  \item \textbf{Final F1 Score}：评估模型对复杂知识问题的综合推理能力（兼顾正确性与稳定性）。
+  \item \textbf{与强基线仍有差距}：尽管数据增强带来提升，但与qwen2.5-VL-7b相比，各项指标仍存在明显差距，说明世界知识能力提升仍受限于模型容量、数据覆盖与对齐质量等因素。
+  \item \textbf{Image Caption对识别显著有益}：加入caption类数据能为识别任务提供更稳定的视觉-文本锚点，从而对recognition相关指标产生正向提升。
+  \item \textbf{FinalQA对推理提升不显著甚至下降}：直接加入FinalQA（尤其是仅监督最终答案的Direct Answer形式）并未稳定提升final指标，部分设置下甚至下降。
+  \item \textbf{FinalQA与RecQA存在冲突}：当FinalQA强调“直达最终答案”时，模型容易学习“图像特征$\rightarrow$答案”的短路映射，反而削弱RecQA对实体识别与稳健锚定的学习；同时识别不稳又会反过来限制FinalQA的推理上限，导致二者在训练中互相掣肘。
 \end{itemize}
 
-\subsection{结果讨论：Think数据与规模效应}
-综合实验可得到三点结论：
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\textbf{Model} &
+\textbf{Correct\_Rec} &
+\textbf{Acc\_Rec} &
+\textbf{F1\_Rec} &
+\textbf{Correct\_Final} &
+\textbf{Acc\_Final} &
+\textbf{F1\_Final} \\
+\hline
+qwen2.5-VL-7b &
+41.3 & 44.6 & 42.9 & 39.5 & 42.1 & 40.8 \\
+\hline
+Ovis2.5\_9B\_base &
+27.9 & 28.3 & 28.1 & 36.8 & \textbf{\underline{37.2}} & 37.0 \\
+\hline
+Ovis2.5\_9B\_part1\_all\_e1 &
+\textbf{\underline{32.9}} & \textbf{\underline{33.3}} & \textbf{\underline{33.1}} & 36.3 & 36.3 & 36.3 \\
+\hline
+Ovis2.5\_9B\_part1\_all\_e2 &
+32.2 & 32.8 & 32.5 & 36.2 & 36.2 & 36.2 \\
+\hline
+Ovis2.5\_9B\_part1\_RKFQA\_e1 &
+31.2 & 31.6 & 31.4 & \textbf{\underline{37.1}} & 37.1 & \textbf{\underline{37.1}} \\
+\hline
+Ovis2.5\_9B\_part1\_RKQA\_e1 &
+31.6 & 32.0 & 31.8 & 35.2 & 35.3 & 35.2 \\
+\hline
+\end{tabular}
+}
+\caption{实验一：Part1数据与不同数据类型配置的消融结果（Chinese SimpleVQA）。Rec表示Recognition；Acc表示Accuracy；Part1表示第一批数据；all表示全部类型数据；e表示训练轮次；RKF分别表示RecQA、KnowQA与FinalQA。}
+\label{tab:wk_ablation_part1}
+\end{table}
+
+\subsection{实验二：引入Think/CoT与数据扩充的改进效果}
+由于实验一中推理指标不升反降，我们进一步验证\textbf{推理过程监督}的作用。核心观察是：当FinalQA仅监督最终答案时，模型更容易“记答案”；而当FinalQA要求输出简要推理过程（Think/CoT），模型被迫先完成识别再调用知识，从而更有效地提升final相关指标。
+
+基于这一发现，我们采取如下改进思路并在表\ref{tab:wk_think_improve}中给出结果：
 \begin{itemize}
-  \item \textbf{显著超越基线}：引入结构化世界知识数据后，模型在识别与推理指标上均获得显著提升，体现“视觉锚定+知识注入+推理贯通”的有效性。
-  \item \textbf{Think/CoT至关重要}：相较于不带CoT的训练，引入显式推理过程后，Final相关指标出现质变提升，说明“学会如何思考”优于“记住答案是什么”。
-  \item \textbf{数据迭代可扩展}：随着多批次数据与Badcase修复的逐步加入，性能呈稳定上升趋势，验证了闭环Pipeline在规模扩展下的可持续性。
+  \item \textbf{保留所有类型数据}：同时保留caption、RecQA、KnowQA、FinalQA等多种数据，以维持“视觉锚定+知识注入+推理贯通”的能力闭环；
+  \item \textbf{扩充未见词条}：继续扩充模型未见过的新词条与长尾实体，提升泛化能力与覆盖面；
+  \item \textbf{FinalQA增加CoT过程}：将FinalQA从Direct Answer升级为带简要推理过程的形式，使模型学习“先识别再推理”的过程性能力；
+  \item \textbf{增加KnowQA与FinalQA密度}：同一张图片可生成多个KnowQA与FinalQA样本，提高知识链路覆盖与训练信号密度。
 \end{itemize}
 
-\section{本章小结与局限}
-本章聚焦视觉语言模型缺乏世界知识的痛点，提出了一套基于分类体系与闭环数据工程的增强方法。核心思想是通过RecQA将视觉特征锚定到实体，通过KnowQA注入背景知识，再通过FinalQA打通二者实现多跳推理；同时引入Think/CoT显式推理数据有效缓解多任务冲突并显著提升复杂问题能力。
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\textbf{Model} &
+\textbf{Correct\_Rec} &
+\textbf{Acc\_Rec} &
+\textbf{F1\_Rec} &
+\textbf{Correct\_Final} &
+\textbf{Acc\_Final} &
+\textbf{F1\_Final} \\
+\hline
+qwen2.5-VL-7b &
+41.3 & 44.6 & 42.9 & 39.5 & 42.1 & 40.8 \\
+\hline
+Ovis2.5\_9B\_part12 &
+33.9 & 34.3 & 34.1 & 36.6 & 36.7 & 36.7 \\
+\hline
+Ovis2.5\_9B\_think\_part12 &
+34.4 & 37.6 & 35.9 & 38.6 & 41.3 & 39.9 \\
+\hline
+Ovis2.5\_9B\_think\_part123 &
+\textbf{57.5} & \textbf{60.7} & \textbf{59.0} & \textbf{51.3} & \textbf{54.2} & \textbf{52.7} \\
+\hline
+\textbf{Gap} &
++16.2 & +16.1 & +16.1 & +11.8 & +12.1 & +11.9 \\
+\hline
+\end{tabular}
+}
+\caption{实验二：引入Think/CoT与数据扩充后的改进结果（Chinese SimpleVQA）。Part12/Part123表示逐步扩充的数据批次；think表示FinalQA带推理过程的训练设置；Gap为最优模型相对qwen2.5-VL-7b的提升。}
+\label{tab:wk_think_improve}
+\end{table}
 
-本方法仍存在两点局限：其一，极长尾知识覆盖仍受制于数据收集与验证成本；其二，参数化知识具有时效性滞后，对于新近事件需要增量数据与再微调。未来可结合检索增强生成（RAG）等机制，提升知识时效性与长尾覆盖的即插即用能力。
+从表\ref{tab:wk_think_improve}可见，\textbf{Think/CoT对final相关指标提升显著}，且在进一步扩充数据分布（Part123）后，recognition与final均获得同步大幅提升。这说明：世界知识能力的提升不仅依赖数据规模与覆盖，更依赖\textbf{训练信号的结构}——显式的推理过程能够促使模型学习可迁移的推理策略，而非在训练分布上“背答案”。
+
+\subsection{最终结果：Chinese SimpleVQA与SimpleVQA}
+在完成上述训练与数据构造策略后，我们在Chinese SimpleVQA与SimpleVQA上报告最终结果，分别见表\ref{tab:wk_final_chinese}与表\ref{tab:wk_final_english}。总体上，Ovis2.5\_9B在中文基准上对recognition指标达到并超过部分基线，但在final推理指标上与更大模型（如Qwen2.5-VL-72B）仍存在差距，说明后续仍可从模型容量、检索增强或更高质量推理数据等方向继续提升。
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\textbf{Model} &
+\textbf{Correct\_Rec} &
+\textbf{Acc\_Rec} &
+\textbf{F1\_Rec} &
+\textbf{Correct\_Final} &
+\textbf{Acc\_Final} &
+\textbf{F1\_Final} \\
+\hline
+qwen2.5-VL-7b &
+41.3 & 44.6 & 42.9 & 39.5 & 42.1 & 40.8 \\
+\hline
+Qwen2.5-VL-72B &
+45.7 & 48.5 & 47.1 & \textbf{\underline{49.0}} & \textbf{\underline{53.4}} & \textbf{\underline{51.1}} \\
+\hline
+Ovis2.5\_9B (Ours) &
+\textbf{\underline{47.4}} & \textbf{\underline{53.6}} & \textbf{\underline{50.3}} & 48.1 & 52.1 & 50.0 \\
+\hline
+\textbf{Gap} &
++6.1 & +9.0 & +7.4 & +8.6 & +10.0 & +9.2 \\
+\hline
+\end{tabular}
+}
+\caption{最终结果：Chinese SimpleVQA。Gap为Ovis2.5\_9B相对qwen2.5-VL-7b的增益。}
+\label{tab:wk_final_chinese}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Model} & \textbf{Correct} & \textbf{Accuracy} & \textbf{F1} \\
+\hline
+qwen2.5-VL-7b & 43.2 & 45.6 & 44.3 \\
+\hline
+Qwen2.5-VL-72B & \textbf{\underline{49.4}} & 52.2 & \textbf{\underline{50.8}} \\
+\hline
+Ovis2.5\_9B (Ours) & 45.8 & \textbf{\underline{52.8}} & 49.0 \\
+\hline
+\textbf{Gap} & +2.6 & +7.2 & +4.7 \\
+\hline
+\end{tabular}
+\caption{最终结果：SimpleVQA。Gap为Ovis2.5\_9B相对qwen2.5-VL-7b的增益。}
+\label{tab:wk_final_english}
+\end{table}
+
+\section{本章小结}
+本章围绕视觉语言模型在世界知识理解上的不足，系统构建了面向世界知识增强的数据体系与训练范式，为后续统一框架的提出提供了可复用的工程化基础。本文的主要贡献与创新点可概括为：
+\begin{itemize}
+  \item \textbf{提出可操作的世界知识类别框架}：构建7个大类、40个子类的分层分类体系，并强调每个类别/子类的覆盖范围、排除规则与命名规范，从而将“世界知识”从零散事实组织为可采样、可统计、可扩展的结构化坐标系，直接服务于后续词条生成与长尾覆盖。
+  \item \textbf{给出端到端的世界知识数据构造Pipeline}：围绕“词条生成$\rightarrow$自动化图片收集$\rightarrow$caption生成$\rightarrow$相关性过滤$\rightarrow$QA对生成$\rightarrow$质量过滤”建立稳定流水线。尤其通过caption作为中间表征支撑图文相关性判别，并引入1$\sim$5分相关性评分机制，在覆盖率与噪声控制之间取得更稳健的平衡。
+  \item \textbf{设计RecQA/KnowQA/FinalQA的三元组任务分解并引入CoT监督}：从“看见$\rightarrow$知道$\rightarrow$理解并推理”的能力递进出发，将感知、知识与推理解耦为三类互补监督信号，避免模型学习“图像$\rightarrow$答案”的捷径；进一步将FinalQA升级为带简要推理过程的FinalQA with CoT，使模型学习可迁移的推理链路而非记忆答案。
+  \item \textbf{通过消融实验揭示冲突并验证改进有效性}：实验表明caption对识别指标具有稳定增益，而仅提供Direct Answer形式的FinalQA对推理指标提升不显著甚至下降，反映出FinalQA与RecQA在训练中存在短路映射带来的冲突；引入Think/CoT并扩充未见词条与多问一图数据后，final相关指标得到显著改善，并在Chinese SimpleVQA与SimpleVQA上取得具有竞争力的最终结果。
+\end{itemize}
 
