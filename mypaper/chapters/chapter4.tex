@@ -2,9 +2,10 @@
 \chapter{面向GUI的视觉语言模型能力提升方案}
 
 \section{背景}
-随着多模态大语言模型（Multimodal Large Language Model, MLLM）在通用视觉理解任务上的快速突破，面向真实设备自动化的\textbf{UI Agent}逐渐成为落地应用的重要方向。与通用场景不同，移动端与桌面端GUI具有\textbf{控件密集、文字细小、布局强约束、交互强状态}等特征，使得模型在“看懂屏幕”这一前置能力上面临更高门槛。
+随着多模态大语言模型（Multimodal Large Language Model, MLLM）在通用视觉理解任务上的快速突破，面向真实设备自动化的\textbf{UI Agent}（交互界面代理）逐渐成为落地应用的重要方向。与通用场景不同，移动端与桌面端GUI具有\textbf{控件密集、文字细小、布局强约束、交互强状态}等特征，使得模型在“看懂屏幕”这一前置能力上面临更高门槛。
 
 在UI Agent的感知--决策闭环中，\textbf{Referring（指代识别）}与\textbf{Grounding（定位/落地）}是最基础也最关键的两项能力：
+% 之后要加入图片示例
 \begin{itemize}
   \item \textbf{Referring}：给定屏幕区域的边界框（Bounding Box, bbox），模型需要输出该区域控件的功能、文本或属性描述，例如输入“bbox [10,10,50,50]”，输出“这是搜索按钮”。
   \item \textbf{Grounding}：给定自然语言指令，模型需要在屏幕截图中定位对应控件并输出其bbox，例如输入“点击登录”，输出“bbox [100,200,300,400]”。
