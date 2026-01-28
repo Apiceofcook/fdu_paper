@@ -1,3 +1,4 @@
+% !TeX program = xelatex
 % ========================================
 % 复旦大学学位论文 LaTeX 模板
 % 论文题目：多模态视觉数据合成研究
@@ -12,8 +13,8 @@
 % 导入必要的宏包
 % ========================================
 % 以下两个包用于生成示例文本，正式写作时可以删除
-% \usepackage{kantlipsum}
-% \usepackage{zhlipsum}
+\usepackage{kantlipsum}
+\usepackage{zhlipsum}
 
 % 其他常用宏包（根据需要取消注释）
 % \usepackage{amsmath}        % 数学公式
@@ -42,8 +43,7 @@
   },
   info = {
     title = {多模态视觉数据合成研究},
-    title* = {Measurements of the interaction between energetic
-      photons and hadrons show that the interaction},
+    title* = {data synthesis for multimodal vision},
 %    date = {2017年2月10日},
     author = {郑国栋},
     author* = {Guodong Zheng},
@@ -53,13 +53,13 @@
       赵\quad 甲 \quad 工程师,
       王三四 \quad 讲\quad 师
     },
-    major = {物理学},
-    department = {凝聚态物理系},
+    major = {人工智能},
+    department = {计算机科学技术},
     secret-level = ii,
     secret-year = {三年},
-    student-id = {14307110000},
-    keywords = {\LaTeX, 排版, 字体排印, 学位论文, 数学, 物理, 计算机, \LaTeX, 排版, 字体排印, 学位论文, 数学, 物理, 计算机, \LaTeX, 排版, 字体排印, 学位论文, 数学, 物理, 计算机},
-    keywords* = {\LaTeX, typesetting, typography, dissertation, mathematics, physics, computer science, \LaTeX, typesetting, typography, dissertation, mathematics, physics, computer science, \LaTeX, typesetting, typography, dissertation, mathematics, physics, computer science},
+    student-id = {23210240404},
+    keywords = {\LaTeX, 多模态视觉数据合成, 视觉数据构造范式, 世界知识, 视觉-语言模型},
+    keywords* = {\LaTeX, Multimodal Visual Data Synthesis, Visual Data Construction Paradigm, World Knowledge, Vision-Language Model},
     clc = {O414.1/65}
   }
 }
@@ -67,6 +67,9 @@
 % ========================================
 % 自定义命令和宏定义（根据需要添加）
 % ========================================
+
+% 定义 BibTeX 命令
+\def\BibTeX{B\textsc{ib}\TeX}
 
 % 示例：自定义命令
 % \newcommand{\mycommand}[1]{...}
@@ -176,7 +179,7 @@ GUI             &  图形用户界面 (Graphical User Interface) \\
 
 % ========================================
 % 如果需要引用所有参考文献，取消下面的注释
-% \nocite{*}
+\nocite{*}
 % ========================================
 
 % ========================================
