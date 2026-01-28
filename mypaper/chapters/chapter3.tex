@@ -2,26 +2,107 @@
 \chapter{多模态数据构造范式}
 
 \section{问题定义}
+当前多模态大语言模型（Multimodal Large Language Model, MLLM）的训练正面临“\textbf{数据质量而非数据数量}”成为主要瓶颈的阶段性转折。一方面，网络抓取的图文对存在噪声大、对齐弱（Misalignment）、图像质量参差不齐（水印、模糊）等问题；另一方面，人工标注成本高且难以覆盖复杂推理与多样化交互格式。已有研究（如ShareGPT4V、MMEvol、SynthVLM）均表明：\textbf{高信息密度、高对齐度与高推理密度的数据}，往往比盲目扩大规模更能有效提升模型能力。
 
-% 在这里撰写问题定义
+为系统性描述并复用高质量数据生产经验，本文提出\textbf{Auto-Evol}多模态合成数据构造范式：将“合成数据生成”从单步的“图$\rightarrow$文/问答”重构为一个包含\textbf{正反双向链路}、\textbf{任务导向的原子问题生成}、\textbf{代理式生成与进化增强}、\textbf{多维校验与闭环反馈}的工程系统。该范式可统一承载不同任务域的数据生产需求：例如第\ref{chap:gui}章面向GUI的Referring/Grounding能力提升与第\ref{chap:world_knowledge}章面向世界知识的RecQA/KnowQA/FinalQA体系，均可视为Auto-Evol在不同任务路由下的具体实例。
+
+% 注：若后续需要对章节号引用更严谨，可在对应章节加label，这里先用文字描述避免未定义引用。
 
 \section{构造范式框架}
+图\ref{fig:auto_evol_pipeline}给出了Auto-Evol范式的闭环框架（与第\ref{fig:gui_data_pipeline}、第\ref{fig:wk_data_pipeline}章中使用的Pipeline图一致）。该框架从数据源侧同时接入\textbf{原生图片}与\textbf{生成图片}两类输入，通过数据初始化统一格式，在自动/人工协作标注后进行质量过滤；随后将样本路由到“任务导向的原子问题生成”，并按感知、理解、推理三类代理生成多任务指令；最后通过数据增强与数据校验提升多样性、难度与正确性，若校验不过则回流重写/重生成，最终产出可用于监督微调（SFT）与后训练（Post-training）的高质量合成数据。
 
-% 在这里撰写构造范式框架
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.70\linewidth]{figures/chapter3/pipeline.pdf}
+  \caption{Auto-Evol多模态合成数据闭环Pipeline：数据初始化--标注--过滤--原子问题生成--增强与校验--回流重写。}
+  \label{fig:auto_evol_pipeline}
+\end{figure}
 
 \subsection{数据表示}
+为了让数据既能被不同生成代理消费，也能被训练框架稳定解析，Auto-Evol采用“\textbf{统一样本骨架 + 任务特定载荷}”的数据表示方式。统一骨架负责记录样本来源、媒介与元信息，任务载荷则承载不同任务的监督信号。
 
-% 数据表示相关内容
+\paragraph{统一样本骨架}
+每个样本包含：\textbf{媒体}（图像或多图）、\textbf{来源类型}（原生/生成）、\textbf{元信息}（分辨率、采集时间、领域标签/类别路径）、以及可选的\textbf{结构化标注}（如bbox、OCR文本、实体ID、关系/状态等）。该层保证跨任务的可追溯、可去重与可统计。
+
+\paragraph{任务特定载荷}
+任务载荷以“指令--输入--输出”的对话结构组织，支持多轮格式与工具调用字段。根据任务类型可包含：
+\begin{itemize}
+  \item \textbf{感知载荷}：bbox/OCR/实例级识别等监督信号（对应GUI章中的Grounding与OCR增强，亦对应MMEvol的Fine-grained Perception Evolution）；
+  \item \textbf{理解载荷}：高密度描述、关系解释、背景知识片段等（对应ShareGPT4V的Better Captions与世界知识章的KnowQA）；
+  \item \textbf{推理载荷}：显式推理过程（CoT/Think）、可执行程序片段（Code-aided CoT）、以及最终答案（对应世界知识章的Think数据与Synthesize Step-by-Step的“可执行推理”思想）。
+\end{itemize}
+这种表示方式的核心目标是让模型学习到“从视觉证据到语义到推理”的渐进链路，而非将复杂问题压缩为端到端的黑箱映射。
 
 \subsection{构造流程}
+Auto-Evol的构造流程可逐模块映射到图\ref{fig:auto_evol_pipeline}的闭环节点。下文结合第4章（GUI）与第5章（世界知识）的实践，说明各模块的作用与必要性。
 
-% 构造流程相关内容
+\paragraph{（1）数据源：原生图片与生成图片的双向数据流}
+Pipeline顶部同时接入两类数据源：
+\begin{itemize}
+  \item \textbf{原生图片（真实收集）}：来自真实应用截图、公开数据集与搜索收集的高清图片。GUI章使用真实设备分辨率截图以保留小控件细节；世界知识章以“词条$\rightarrow$图片”的方式确保实体可控。
+  \item \textbf{生成图片（Text-to-Image）}：当长尾场景稀缺或需要严格对齐时，可采用“文本$\rightarrow$图像”的逆向数据工程。SynthVLM表明，先清洗caption再用扩散模型生成高分辨率图像，并用CLIPScore+SSIM筛选，可从源头提高图文对齐度与图像清晰度，从而以更少数据达到更强效果。
+\end{itemize}
+双向数据流的价值在于：\textbf{正向流（图$\rightarrow$文）}擅长覆盖真实分布，\textbf{反向流（文$\rightarrow$图）}擅长制造“强对齐、可控分布”，两者互补可显著提升数据的覆盖与可信度。
+
+\paragraph{（2）数据初始化：统一格式与任务路由的前置条件}
+“数据初始化”负责将不同来源的样本规范化：补全元信息、统一字段（图片ID/类别路径/实体ID/bbox/OCR等）、去重与基础清洗，并为后续任务分发提供\textbf{Task Router}所需的标签。GUI章的初始化更强调分辨率与布局信息；世界知识章更强调实体锚点与类别层级。该模块对应AgentInstruct所强调的“内容转换流（Content Transformation Flow）”思想：先把原始材料变成适合生成指令的中间表示，才能稳定规模化生产高质量指令。
+
+\paragraph{（3）标注：大模型细粒度标注与人工上下文补全}
+Pipeline中部的两条标注路径对应“自动为主、人工兜底”的协作机制：
+\begin{itemize}
+  \item \textbf{大模型标注生成详细描述}：ShareGPT4V证明，高密度caption能显著增强模态对齐并解锁视觉编码器的微调潜力；在GUI中，该过程体现为自动生成控件描述与候选bbox；在世界知识中体现为包含背景知识的深度描述与候选QA。
+  \item \textbf{人工标注收集相关上下文}：对自动标注难以覆盖的条件（页面目的、交互前置、实体歧义消解）进行补全，以减少“幻觉式补写”。该模块在GUI章的人机协同标注与世界知识章的实体锚定中均是质量上限的关键。
+\end{itemize}
+
+\paragraph{（4）过滤：相关性与准确性的第一道闸门}
+“过滤相关性、准确性”是合成数据可用性的核心保障。MMEvol提出“Instruction Elimination”机制：每轮进化后用LLM比较新旧指令质量，若进化引入幻觉或无意义则淘汰。SynthVLM也通过CLIPScore等指标进行强筛选，强调“质量>数量”。因此，过滤不仅是去噪，更是\textbf{控制数据分布与信息密度}的关键环节。
+
+\paragraph{（5）任务导向的原子问题生成：从能力拆解到可监督信号}
+“任务导向的原子问题生成”将复杂任务分解为可组合的原子能力，并生成可监督的子任务集合。该模块正是第4章与第5章数据体系的共同抽象：
+\begin{itemize}
+  \item GUI章将UI Agent能力拆解为感知（bbox/OCR）、理解（控件语义/关系）、推理（工具与计划）三类原子任务；
+  \item 世界知识章将能力拆解为RecQA（视觉识别锚定）、KnowQA（知识注入）、FinalQA（推理贯通）。
+\end{itemize}
+MMEvol进一步将推理过程抽象为“视觉操作链”（定位、OCR、存在性判断、计算等原子操作），并要求显式生成推理步骤，说明原子化是提高复杂度与降低幻觉的有效路径。
+
+\paragraph{（6）三代理生成：感知/理解/推理的分层合成}
+Pipeline中“感知/理解/推理”三块对应分层代理（Perception, Understanding, Reasoning Agents）：
+\begin{itemize}
+  \item \textbf{感知代理}：强化细粒度对齐与长尾信息挖掘（MMEvol的Fine-grained Perception Evolution；GUI的Small Widgets定位；世界知识的实体识别锚定）。
+  \item \textbf{理解代理}：生成高密度描述、解释与问答，提高语义覆盖与上下文完整性（ShareGPT4V式caption；GUI的Referring；世界知识的KnowQA）。
+  \item \textbf{推理代理}：生成多跳推理与长链路决策数据，并可引入\textbf{代码辅助的思维链（Code-aided CoT）}。Synthesize Step-by-Step表明，将推理拆成“生成步骤+工具执行”，能显著提高数值与逻辑正确性，降低端到端推理的幻觉。
+\end{itemize}
+该分层结构的作用是把“难任务”拆成“可控生成、可控校验”的组合单元，避免仅靠单一Prompt生成导致任务形式单一与幻觉堆积。
+
+\paragraph{（7）数据增强：细粒度、难度、指令多样性的系统注入}
+Pipeline中的“数据增强”可解释为三维增强：
+\begin{itemize}
+  \item \textbf{细粒度增强}：围绕次要目标、背景细节、空间关系生成更多监督（MMEvol强调长尾物体与细粒度对齐）；
+  \item \textbf{难度增强}：引入多步推理、约束条件、反事实假设等提升推理密度（MMEvol的Cognitive Reasoning Evolution；AgentInstruct的Refinement Flow）；
+  \item \textbf{指令多样性增强}：将简单Q\&A改写为代码/JSON/角色扮演等多样格式，提升交互鲁棒性（MMEvol的Interaction Evolution；Self-Instruct的自举式指令扩展也证明多样性对“格式对齐”至关重要）。
+\end{itemize}
+
+\paragraph{（8）数据校验：LLM-as-a-Judge + 工具/执行校验的多维验证}
+高质量合成数据必须“可验证”。因此Auto-Evol引入多维校验：
+\begin{itemize}
+  \item \textbf{质量校验}：用LLM-as-a-Judge评估指令清晰度、逻辑性与无歧义性（对应MMEvol的指令淘汰机制）；
+  \item \textbf{相关性校验}：通过图文匹配分数、实体一致性检查等剔除错配（对应SynthVLM的CLIPScore筛选）；
+  \item \textbf{执行校验}：对推理类样本执行代码/工具链验证答案一致性（对应Synthesize Step-by-Step的“外部工具执行”确保正确性）。
+\end{itemize}
+
+\paragraph{（9）回流重写/重生成：闭环提升与分布自适应}
+当某类任务通过率持续偏低时，系统触发右侧“重写”回路：要么对指令/答案进行重写（保持图像不变），要么回流到“生成图片”分支重新合成更契合任务的图像，再进入流程。该闭环使数据系统具备“自我修复”的能力，避免一次性生成导致的质量不可控，也为第4章与第5章的Badcase Mining提供统一接口：把失败样本变成下一轮数据生产的目标分布。
 
 \section{关键技术}
-
-% 在这里撰写关键技术
+围绕Auto-Evol范式，本文将关键技术归纳为四类，与前两章形成对应关系：
+\begin{itemize}
+  \item \textbf{高密度对齐（Dense Alignment）}：以ShareGPT4V式高密度caption与GUI/世界知识中的结构化标注为代表，提升视觉--语言对齐粒度；
+  \item \textbf{逆向数据工程（Text-to-Image）}：以SynthVLM为代表，先清洗文本再生成图像，用强对齐补足长尾与难例；
+  \item \textbf{原子化与显式推理（Atomic + CoT/Tool）}：以MMEvol与Synthesize Step-by-Step为代表，显式生成推理步骤并可借助工具执行，提升复杂任务正确性；
+  \item \textbf{进化增强与淘汰机制（Evolution \allowbreak + \allowbreak Elimination）}：结合MMEvol/\allowbreak AgentInstruct/\allowbreak Self-Instruct的迭代式生成与过滤思想，通过“增强--校验--淘汰/回流”持续提高数据质量与多样性。
+\end{itemize}
+这些技术共同支撑了本文在GUI与世界知识两个任务域中的数据工程落地：前者强调高分辨率细粒度感知与结构化监督，后者强调实体锚定、知识注入与多跳推理链路；二者在Auto-Evol范式下实现统一建模与复用。
 
 \section{本章小结}
-
-% 在这里撰写本章小结
+本章提出Auto-Evol多模态合成数据构造范式，并以图\ref{fig:auto_evol_pipeline}为中心逐模块阐释其作用：通过原生/生成双向数据流保证分布覆盖与强对齐，通过数据初始化与任务路由统一样本结构，通过自动/人工协作标注提升信息密度，通过过滤与多维校验抑制幻觉并保证正确性，通过原子问题生成与三代理生成系统注入细粒度、语义与推理能力，最终以闭环回流实现可持续迭代。该范式为第4章GUI能力提升与第5章世界知识增强提供统一的数据工程底座，也为后续扩展到图表推理、自动驾驶等场景提供了可复用的方法学框架。
 
