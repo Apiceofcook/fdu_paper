@@ -9,7 +9,7 @@
 % 注：若后续需要对章节号引用更严谨，可在对应章节加label，这里先用文字描述避免未定义引用。
 
 \section{构造范式框架}
-图\ref{fig:auto_evol_pipeline}给出了Auto-Evol范式的闭环框架（与第\ref{fig:gui_data_pipeline}、第\ref{fig:wk_data_pipeline}章中使用的Pipeline图一致）。该框架从数据源侧同时接入\textbf{原生图片}与\textbf{生成图片}两类输入，通过数据初始化统一格式，在自动/人工协作标注后进行质量过滤；随后将样本路由到“任务导向的原子问题生成”，并按感知、理解、推理三类代理生成多任务指令；最后通过数据增强与数据校验提升多样性、难度与正确性，若校验不过则回流重写/重生成，最终产出可用于监督微调（SFT）与后训练（Post-training）的高质量合成数据。
+图\ref{fig:auto_evol_pipeline}给出了Auto-Evol范式的闭环框架。该框架从数据源侧同时接入\textbf{原生图片}与\textbf{生成图片}两类输入，通过数据初始化统一格式，在自动/人工协作标注后进行质量过滤；随后将样本路由到“任务导向的原子问题生成”，并按感知、理解、推理三类代理生成多任务指令；最后通过数据增强与数据校验提升多样性、难度与正确性，若校验不过则回流重写/重生成，最终产出可用于监督微调（SFT）与后训练（Post-training）的高质量合成数据。该流程在第\ref{chap:gui}章与第\ref{chap:world_knowledge}章分别以GUI数据构造与世界知识数据构造的形式落地。
 
 \begin{figure}[t]
   \centering
