@@ -169,7 +169,7 @@
 
 实验结果如表\ref{tab:wk_ablation_part1}所示，可以得到以下结论：
 \begin{itemize}
-  \item \textbf{与强基线仍有差距}：尽管数据增强带来提升，但与qwen2.5-VL-7b相比，各项指标仍存在明显差距，说明世界知识能力提升仍受限于模型容量、数据覆盖与对齐质量等因素。
+  \item \textbf{与强基线仍有差距}：尽管数据增强带来提升，但与qwen2.5-VL-7b相比\citep{bai2025qwen25vl}，各项指标仍存在明显差距，说明世界知识能力提升仍受限于模型容量、数据覆盖与对齐质量等因素。
   \item \textbf{Image Caption对识别显著有益}：加入caption类数据能为识别任务提供更稳定的视觉-文本锚点，从而对recognition相关指标产生正向提升。
   \item \textbf{FinalQA对推理提升不显著甚至下降}：直接加入FinalQA（尤其是仅监督最终答案的Direct Answer形式）并未稳定提升final指标，部分设置下甚至下降。
   \item \textbf{FinalQA与RecQA存在冲突}：当FinalQA强调“直达最终答案”时，模型容易学习“图像特征$\rightarrow$答案”的短路映射，反而削弱RecQA对实体识别与稳健锚定的学习；同时识别不稳又会反过来限制FinalQA的推理上限，导致二者在训练中互相掣肘。
@@ -215,7 +215,7 @@ Ovis2.5\_9B\_part1\_RKQA\_e1 &
 \end{table}
 
 \subsection{实验二：引入Think/CoT与数据扩充的改进效果}
-由于实验一中推理指标不升反降，我们进一步验证\textbf{推理过程监督}的作用。核心观察是：当FinalQA仅监督最终答案时，模型更容易“记答案”；而当FinalQA要求输出简要推理过程（Think/CoT），模型被迫先完成识别再调用知识，从而更有效地提升final相关指标。
+由于实验一中推理指标不升反降，我们进一步验证\textbf{推理过程监督}的作用。核心观察是：当FinalQA仅监督最终答案时，模型更容易“记答案”；而当FinalQA要求输出简要推理过程（Think/CoT）\citep{wei2022chain}，模型被迫先完成识别再调用知识，从而更有效地提升final相关指标。
 
 基于这一发现，我们采取如下改进思路并在表\ref{tab:wk_think_improve}中给出结果：
 \begin{itemize}
@@ -264,7 +264,7 @@ Ovis2.5\_9B\_think\_part123 &
 从表\ref{tab:wk_think_improve}可见，\textbf{Think/CoT对final相关指标提升显著}，且在进一步扩充数据分布（Part123）后，recognition与final均获得同步大幅提升。这说明：世界知识能力的提升不仅依赖数据规模与覆盖，更依赖\textbf{训练信号的结构}——显式的推理过程能够促使模型学习可迁移的推理策略，而非在训练分布上“背答案”。
 
 \subsection{最终结果：Chinese SimpleVQA与SimpleVQA}
-在完成上述训练与数据构造策略后，我们在Chinese SimpleVQA与SimpleVQA上报告最终结果，分别见表\ref{tab:wk_final_chinese}与表\ref{tab:wk_final_english}。总体上，Ovis2.5\_9B在中文基准上对recognition指标达到并超过部分基线，但在final推理指标上与更大模型（如Qwen2.5-VL-72B）仍存在差距，说明后续仍可从模型容量、检索增强或更高质量推理数据等方向继续提升。
+在完成上述训练与数据构造策略后，一共产出了\textbf{80w}条数据，在Chinese SimpleVQA与SimpleVQA上的最终结果，分别见表\ref{tab:wk_final_chinese}与表\ref{tab:wk_final_english}。总体上，Ovis2.5\_9B在中文基准上对recognition指标达到并超过部分基线，但在final推理指标上与更大模型（如Qwen2.5-VL-72B）仍存在差距，说明后续仍可从模型容量、检索增强或更高质量推理数据等方向继续提升。
 
 \begin{table}[htbp]
 \centering

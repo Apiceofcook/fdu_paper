@@ -42,12 +42,12 @@
     bib-resource = {mythesis.bib}
   },
   info = {
-    title = {多模态视觉数据合成研究},
-    title* = {data synthesis for multimodal vision},
+    title = {多模态数据合成范式研究},
+    title* = {Data Synthesis Paradigm for Multimodal},
 %    date = {2017年2月10日},
-    author = {郑国栋},
-    author* = {Guodong Zheng},
-    supervisor = {黄萱菁\quad 教授},
+    author = {xxx},
+    author* = {xx x},
+    supervisor = {xxx\quad 教授},
     instructors = {
       张五六 \quad 工程师,
       赵\quad 甲 \quad 工程师,
@@ -57,9 +57,9 @@
     department = {计算机科学技术},
     secret-level = ii,
     secret-year = {三年},
-    student-id = {23210240404},
-    keywords = {\LaTeX, 多模态视觉数据合成, 视觉数据构造范式, 世界知识, 视觉-语言模型},
-    keywords* = {\LaTeX, Multimodal Visual Data Synthesis, Visual Data Construction Paradigm, World Knowledge, Vision-Language Model},
+    student-id = {xxxxxxxxxxx},
+    keywords = {多模态数据合成, Auto-Evol, 数据构造范式, GUI理解, 世界知识推理},
+    keywords* = {Multimodal Data Synthesis, Auto-Evol, Data Construction Paradigm, GUI Understanding, World Knowledge Reasoning},
     clc = {O414.1/65}
   }
 }
@@ -105,8 +105,7 @@
 % 摘要应简明扼要地概括论文的主要内容、研究方法、主要结论等
 % 建议字数：300-500字
 
-本文研究了多模态视觉数据合成的相关问题...
-% （此处为示例内容，请替换为您的实际摘要）
+多模态大语言模型在通用视觉理解任务上快速发展，但训练数据普遍存在噪声大、对齐弱与推理密度不足等问题，使得“数据质量”逐渐成为能力提升瓶颈。本文首先从两类高难真实需求出发完成方法落地：其一，面向移动端GUI，构建多源融合与精标语料，并结合高分辨率感知与训练策略提升Referring与Grounding能力，在Top 200应用评测中取得显著提升；其二，面向世界知识，建立知识类别框架与端到端数据Pipeline，构造RecQA/KnowQA/FinalQA并引入Think/CoT过程监督，增强“先识别再推理”的推理能力。基于上述实践与实验归因，本文进一步抽象并提出Auto-Evol多模态合成数据构造范式，将数据生产从单步“图像$\rightarrow$文本/问答”生成升级为闭环系统：通过结构化初始化、任务路由与原子问题生成、代理式增强、过滤校验与回流重写，稳定产出高信息密度、高对齐度与高推理密度的训练信号。GUI与世界知识两条任务线的量化结果为该范式中“结构化锚点/中间表征/过程性监督/评测式质控”等关键设计提供了直接证据，表明该范式与数据工程方法可有效提升模型在真实场景中的定位、理解与知识推理表现，并为后续扩展提供通用框架。
 
 \end{abstract}
 
@@ -119,8 +118,9 @@
 % and conclusions of the thesis
 % Recommended length: 200-400 words
 
-This thesis studies the problems related to multimodal visual data synthesis...
-% (This is example content, please replace it with your actual abstract)
+Multimodal large language models (MLLMs) have advanced rapidly in general vision understanding, yet their progress is increasingly bottlenecked by training data quality, including noise, weak vision--language alignment, and insufficient reasoning density. This thesis first develops and evaluates data and training solutions for two representative real-world challenges. For mobile graphical user interfaces (GUIs), we build multi-source, high-quality annotated data and combine it with high-resolution perception and tailored training strategies to improve core capabilities such as Referring and Grounding, yielding substantial gains on evaluations across top-200 real-world applications. For world knowledge enhancement, we establish a structured knowledge taxonomy and an end-to-end data pipeline, construct a RecQA/KnowQA/FinalQA triplet, and introduce Think/CoT-style process supervision to strengthen the transferable “recognize-then-reason” capability.
+
+Motivated by these practices and evidence, we then abstract and propose Auto-Evol, a paradigm that upgrades conventional one-shot generation (image $\rightarrow$ text/QA) into a closed-loop multimodal data production system. Auto-Evol integrates structured initialization, task routing with atomic question construction, agent-based augmentation, multi-dimensional filtering and verification, and feedback-driven rewriting, aiming to stably produce training signals with high information density, strong alignment, and high reasoning density. The empirical findings from the GUI and world knowledge tasks provide direct validation for key design choices in Auto-Evol, such as structured anchors, intermediate representations, process supervision, and evaluation-driven quality control. Overall, the proposed paradigm and data engineering methodology effectively improve localization, understanding, and knowledge reasoning in realistic settings, and offer a reusable framework for broader domains.
 
 \end{abstract*}
 
@@ -133,6 +133,13 @@ $\mathbb{R}$    &  实数集 \\
 $\mathbb{N}$    &  自然数集 \\
 $\mathcal{D}$   &  数据集 \\
 $\mathcal{L}$   &  损失函数 \\
+\(\mathrm{IoU}\) &  交并比（Intersection over Union） \\
+$B_{\mathrm{pred}}$ &  预测边界框（Predicted bounding box） \\
+$B_{\mathrm{gt}}$   &  标注/真值边界框（Ground-truth bounding box） \\
+$\tau$          &  阈值（如IoU判定阈值） \\
+$[l,t,r,b]$     &  边界框坐标表示（左、上、右、下） \\
+$R_{ext}$       &  外部注释到控件的绑定关系（Label-to-Control） \\
+$R_{val}$       &  当前值到控件的绑定关系（Value-to-Control） \\
 
 % 常用符号
 $x$             &  输入数据 \\
@@ -147,6 +154,17 @@ DL              &  深度学习 (Deep Learning) \\
 CNN             &  卷积神经网络 (Convolutional Neural Network) \\
 GAN             &  生成对抗网络 (Generative Adversarial Network) \\
 GUI             &  图形用户界面 (Graphical User Interface) \\
+VLM             &  视觉语言模型 (Vision--Language Model) \\
+MLLM            &  多模态大语言模型 (Multimodal Large Language Model) \\
+OCR             &  光学字符识别 (Optical Character Recognition) \\
+SFT             &  监督微调 (Supervised Fine-Tuning) \\
+CoT             &  链式思维 (Chain-of-Thought) \\
+QA              &  问答 (Question Answering) \\
+RecQA           &  识别问答 (Recognition QA) \\
+KnowQA          &  知识问答 (Knowledge QA) \\
+FinalQA         &  推理问答 (Reasoning QA) \\
+DMT             &  双阶段混合微调 (Dual-stage Mixed Tuning) \\
+AnyRes          &  动态分辨率/任意分辨率机制 (Any Resolution) \\
 
 % 根据实际需要添加更多符号
 % ...

@@ -12,7 +12,7 @@
   \item \textbf{Grounding}：给定自然语言指令，模型需要在屏幕截图中定位对应控件并输出其bbox，即模型定位的能力，例如输入“登陆按钮在哪里？”，输出“bbox [100,200,300,400]”。
 \end{itemize}
 
-尽管通用MLLM已具备一定视觉理解能力，但在GUI垂直领域仍存在三个主要挑战：\textbf{（1）细粒度定位偏差}，小面积控件的坐标难以稳定。\textbf{（2）图片信息损失严重}，直接缩放图片后细节与文字信息丢失严重。\textbf{（3）视觉与语言难以对齐}，传统检测模型缺乏语义理解能力、视觉语言模型定位效果存在偏差）。为此，本章提出一套以\textbf{多源数据工程}为核心、结合\textbf{双阶段混合微调（DMT）}与\textbf{高分辨率架构优化}的系统方案，目标是在移动端GUI最流行前200应用的使用场景测试数据中实现Referring准确率$\ge 95\%$、单控件Grounding准确率$\ge 95\%$。
+尽管通用MLLM已具备一定视觉理解能力，但在GUI垂直领域仍存在三个主要挑战：\textbf{（1）细粒度定位偏差}，小面积控件的坐标难以稳定。\textbf{（2）图片信息损失严重}，直接缩放图片后细节与文字信息丢失严重。\textbf{（3）视觉与语言难以对齐}，传统检测模型缺乏语义理解能力、视觉语言模型定位效果存在偏差）。为此，本章提出一套以\textbf{多源数据工程}为核心、结合\textbf{双阶段混合微调（DMT）}与\textbf{高分辨率架构优化}的系统方案，目标是在移动端GUI最流行前200应用的使用场景测试数据中实现Referring准确率$\ge 90\%$、单控件Grounding准确率$\ge 90\%$。
 
 \section{数据工程：多源融合与高质量构建}
 数据是GUI理解能力提升的基石。本节围绕“\textbf{多源融合}”与“\textbf{高质量构建}”两条主线，构建开源清洗数据、闭源精标数据与合成数据相互补位的训练语料体系，以保证数据质量可控、可迭代。
@@ -32,7 +32,7 @@ GUI领域的Referring与Grounding能力提升，本质依赖于“\textbf{理解
 需要强调的是，上述流程虽然并非后续章节提出的多模态数据合成范式，而是从GUI任务需求出发的一种可行数据工程路径：它首先明确了GUI训练数据必须同时覆盖\textbf{语义}与\textbf{图形定位}，并以“结构化初始化--精细标注--任务化构造--质控迭代”为核心步骤，为后续提出更通用的多模态数据构造框架奠定基础。
 
 \subsection{开源数据清洗与重构}
-开源数据在规模与多样性上具备优势，但往往存在噪声、布局失真与语义标签不一致的问题。以RICO为代表的GUI数据集包含大量移动端界面及其视图层级（View Hierarchy），然而原始数据中存在不可见节点、错误标注、层级断裂等现象，直接用于训练会导致模型学习到错误的几何与语义先验。本文采用CLAY（Clean Layout for Android UI）思路对RICO进行清洗与增强，主要包括：
+开源数据在规模与多样性上具备优势，但往往存在噪声、布局失真与语义标签不一致的问题。以RICO为代表的GUI数据集\citep{deka2017rico}包含大量移动端界面及其视图层级（View Hierarchy），然而原始数据中存在不可见节点、错误标注、层级断裂等现象，直接用于训练会导致模型学习到错误的几何与语义先验。本文采用CLAY（Clean Layout for Android UI）思路对RICO进行清洗与增强\citep{li2022clay}，主要包括：
 \begin{itemize}
   \item \textbf{噪声过滤与层级修复}：剔除包含“INVALID”标签、尺寸为0、透明不可见等节点，并修复视图树结构，确保层级关系可用于后续关系建模与样本构造。
   \item \textbf{语义标签映射}：将原始Android View类名映射为更具语义的通用组件类别，以减少类别碎片化带来的学习难度，例如将\texttt{android.widget.\allowbreak EditText}及其子类统一映射为\texttt{TEXT\_INPUT}，将\texttt{FloatingActionButton}映射为\texttt{BUTTON}。
@@ -44,10 +44,10 @@ GUI领域的Referring与Grounding能力提升，本质依赖于“\textbf{理解
 \end{itemize}
 通过上述处理，开源数据为模型提供了覆盖广的GUI布局先验与基础交互语义，但在中文场景、复杂交互与状态理解上仍存在缺口，需要闭源数据与合成数据补齐。
 
-除RICO外，本文在开源侧还引入了\textbf{MobileViews}与\textbf{OS-Atlas}两类GUI数据，以补齐交互覆盖与定位监督：
+除RICO外，本文在开源侧还引入了\textbf{MobileViews}\citep{gao2024mobileviews}与\textbf{OS-Atlas}\citep{wu2024osatlas}两类GUI数据，以补齐交互覆盖与定位监督：
 \begin{itemize}
-  \item \textbf{MobileViews}：MobileViews是面向移动端智能体与UI分析的大规模数据集，其MobileViews-600K版本包含从Google Play Store上两万余应用采集的60万级“屏幕截图--视图层次结构（VH）”配对数据。其最新版本基于DroidBot并针对大规模采集进行了优化，在保持与DroidBot输出结构一致的同时，能够捕获更全面的交互细节。本文利用该数据集中控件的\textbf{类型}与\textbf{组成信息}（包括bbox与控件内文字）构造训练样本：一方面将控件文字作为OCR监督与Referring依据，另一方面将VH中的层级与控件类型作为语义先验，增强模型对复杂页面结构的泛化能力。
-  \item \textbf{OS-Atlas}：本文主要使用OS-Atlas提供的GUI Grounding数据集，其中目标元素位置存储在\texttt{bbox}字段，采用$[left,\,top,\,right,\,bottom]$的归一化小数表示（每个值均为$[0,1]$范围内相对图像宽高的比例）。在任务构造时，我们将其与其它数据源统一到一致的坐标表示与字段规范（并保持bbox的几何语义一致），用于补强“指令$\rightarrow$目标控件位置”的Grounding监督，尤其覆盖长尾指令表述与跨应用布局差异。
+  \item \textbf{MobileViews}：MobileViews是面向移动端智能体与UI分析的大规模数据集\citep{gao2024mobileviews}，其MobileViews-600K版本包含从Google Play Store上两万余应用采集的60万级“屏幕截图--视图层次结构（VH）”配对数据。其最新版本基于DroidBot并针对大规模采集进行了优化\citep{droidbot}，在保持与DroidBot输出结构一致的同时，能够捕获更全面的交互细节。本文利用该数据集中控件的\textbf{类型}与\textbf{组成信息}（包括bbox与控件内文字）构造训练样本：一方面将控件文字作为OCR监督与Referring依据，另一方面将VH中的层级与控件类型作为语义先验，增强模型对复杂页面结构的泛化能力。
+  \item \textbf{OS-Atlas}：本文主要使用OS-Atlas提供的GUI Grounding数据集\citep{wu2024osatlas}，其中目标元素位置存储在\texttt{bbox}字段，采用$[left,\,top,\,right,\,bottom]$的归一化小数表示（每个值均为$[0,1]$范围内相对图像宽高的比例）。在任务构造时，我们将其与其它数据源统一到一致的坐标表示与字段规范（并保持bbox的几何语义一致），用于补强“指令$\rightarrow$目标控件位置”的Grounding监督，尤其覆盖长尾指令表述与跨应用布局差异。
 \end{itemize}
 
 \subsection{闭源数据构建}
@@ -56,9 +56,9 @@ GUI领域的Referring与Grounding能力提升，本质依赖于“\textbf{理解
 \paragraph{第一阶段：数据标注（混合标注模式）}
 该阶段从原始截图开始（可选携带页面XML/VH等元数据），采用“自动化预标注+人工校验补充+纯人工兜底”的混合模式，以兼顾效率与准确性：
 \begin{itemize}
-  \item \textbf{UI元素检测}：使用轻量检测模型（如YOLO）自动检测图标、按钮、输入框等控件并输出bbox。
-  \item \textbf{文字识别（OCR）}：对候选框区域使用PaddleOCR提取控件文字（如“登录”“取消”等），形成文字与位置的对齐监督。
-  \item \textbf{属性预测}：利用已训练的多模态模型（如qwen2vl）对候选控件进行属性补全，例如控件细分类别、可交互性以及选中/开启等状态。
+  \item \textbf{UI元素检测}：使用轻量检测模型（如YOLO）自动检测图标、按钮、输入框等控件并输出bbox\citep{redmon2016yolo}。
+  \item \textbf{文字识别（OCR）}：对候选框区域使用PaddleOCR提取控件文字（如“登录”“取消”等），形成文字与位置的对齐监督\citep{du2020ppocr}。
+  \item \textbf{属性预测}：利用已训练的多模态模型（如qwen2vl）对候选控件进行属性补全，例如控件细分类别、可交互性以及选中/开启等状态\citep{bai2025qwen25vl}。
   \item \textbf{人工介入与整合}：标注人员对预标注结果进行校验与修正，并补充模型遗漏的控件；对于复杂样本走纯人工标注分支。最终合并得到统一标注结果，确保每个关键控件的\textbf{BBox（位置）}、\textbf{类别（类型）}与\textbf{属性（文字/状态/可用性等）}准确一致。
 \end{itemize}
 
@@ -73,7 +73,7 @@ GUI领域的Referring与Grounding能力提升，本质依赖于“\textbf{理解
 \end{itemize}
 
 \paragraph{第三阶段：QA数据生成与过滤}
-该阶段是将结构化控件信息转化为“可学习的功能语义与操作意图”的核心步骤：将聚合好的控件信息与精心设计的系统提示（sys prompt）及少样例（few-shot examples）结合，调用强多模态模型（如gpt4o/qwen2vl）生成关于界面功能与操作意图的问答对（QA）。例如，生成问题：“如何退出登录？”并给出可执行的操作序列描述。
+该阶段是将结构化控件信息转化为“可学习的功能语义与操作意图”的核心步骤：将聚合好的控件信息与精心设计的系统提示（sys prompt）及少样例（few-shot examples）结合，调用强多模态模型（如GPT-4o/qwen2vl）生成关于界面功能与操作意图的问答对（QA）\citep{openai2024gpt4o,bai2025qwen25vl}。例如，生成问题：“如何退出登录？”并给出可执行的操作序列描述。
 为保证质量与覆盖，进一步执行数据过滤与去重：
 \begin{itemize}
   \item \textbf{过滤噪音}：基于规则（如问题过短、答案无意义、指令与目标控件不匹配等）过滤低质量样本；
@@ -150,19 +150,133 @@ AnyRes带来的主要代价是视觉token数量增加，从而提升计算开销
   \item \textbf{Referring准确率}：给定目标bbox，模型输出的类别/功能/文本描述与标注答案一致的比例；对于含OCR文本的样本，额外关注关键实体与短语的匹配正确率。
   \item \textbf{Grounding准确率}：给定自然语言指令，模型预测bbox与标注bbox达到预设重叠阈值（如IoU$\ge\tau$）且命中目标控件的比例；同时统计在密集小控件场景下的误差分布（偏移量、误命中率）。
 \end{itemize}
+其中，IoU（Intersection over Union）用于度量预测框与标注框的空间重叠程度，定义为两者交集面积与并集面积之比：
+\[
+\mathrm{IoU}=\frac{\mathrm{area}(B_{\text{pred}}\cap B_{\text{gt}})}{\mathrm{area}(B_{\text{pred}}\cup B_{\text{gt}})}\in[0,1].
+\]
+在GUI场景中，许多控件（如图标、页面指示器、滑块把手）尺寸较小且相邻密集，轻微的像素级偏移就可能导致IoU显著下降。因此本文同时报告不同阈值下的结果：较宽松的IoU$\ge$0.1更关注“是否命中正确控件区域”，而更严格的IoU$\ge$0.5则更强调框的几何精确度与边界贴合度。
 评测样本覆盖Top 200应用的高频页面与交互组件，包含中文文本、弹窗浮层与多状态控件等困难模式，以检验模型在真实分辨率与真实布局下的泛化能力。
 
-\subsection{实验结果}
-为验证各模块的有效性，实验设计从“数据--架构--训练”三个维度进行对比：
-\begin{itemize}
-  \item \textbf{数据维度}：开源清洗数据/闭源精标数据/合成数据的不同组合；是否引入负样本、关系图谱与状态向量。
-  \item \textbf{架构维度}：固定分辨率输入与AnyRes输入的对比；是否使用文本化坐标与定位专用Token。
-  \item \textbf{训练维度}：单阶段SFT与DMT两阶段策略对比；阶段二中GUI回放比例$k$对定位精度与通用对话能力的影响。
-\end{itemize}
+\subsection{实验结果与分析}
+为验证多源数据工程的有效性，实验设计主要从\textbf{数据维度}进行对比：开源清洗数据、闭源精标数据及其组合（并配合负样本、关系图谱与状态向量等监督信息）。
 
-\subsection{分析与讨论}
-综合实验结果可观察到三类主要误差来源：\textbf{（1）极密集区域的近邻混淆}（图标间距过小导致误点相邻控件）、\textbf{（2）文本与控件关系未显式建模时的语义歧义}（如“用户名/手机号”标签与输入框的绑定不稳定）、\textbf{（3）跨状态控件的动作选择偏差}（开关已开启仍重复“打开”）。对应地，本章的数据工程与架构设计提供了针对性缓解：AnyRes提升局部细节分辨率；关系图谱与状态向量降低语义歧义；负样本与工具校验减少“看起来像可点但不可点”的误命中。
+表\ref{tab:gui_data_ablation}从数据维度汇总了不同数据配置下的Grounding与Referring性能。可以看到，仅使用基线模型时两项指标均较低；引入开源清洗数据后，Grounding F1从0.324提升至0.557，Referring F1从0.523提升至0.612；进一步融合闭源精标数据后，Grounding F1达到0.846，Referring F1达到0.905，验证了多源数据融合策略的有效性。
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{数据配置} & \textbf{Grounding F1} & \textbf{Referring F1} \\
+\hline
+Baseline & 0.324 & 0.523 \\
+\hline
+Baseline + 开源数据 & 0.557 & 0.612 \\
+\hline
+Baseline + 开源 + 闭源 & \textbf{0.846} & \textbf{0.905} \\
+\hline
+\end{tabular}
+\caption{不同数据配置下的Grounding与Referring性能对比。}
+\label{tab:gui_data_ablation}
+\end{table}
+
+表\ref{tab:gui_grounding}展示了模型在各类型UI控件上的Grounding性能。可以看到，在IoU阈值为0.1时，整体F1达到0.923；在更严格的IoU$\ge$0.5阈值下，整体F1仍保持0.846。其中，按钮、输入框、弹窗、开关等高频交互控件的定位精度较高（F1$>$0.94），而页面指示器、滑块等小尺寸或形态多变的控件定位难度较大。
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{控件类型} & \textbf{数量} & \textbf{F1 (IoU$\ge$0.1)} & \textbf{F1 (IoU$\ge$0.5)} \\
+\hline
+文本 & 3768 & 0.945 & 0.862 \\
+\hline
+图标 & 2298 & 0.855 & 0.737 \\
+\hline
+按钮 & 1579 & 0.972 & 0.947 \\
+\hline
+图片 & 347 & 0.850 & 0.836 \\
+\hline
+导航栏 & 298 & 0.983 & 0.930 \\
+\hline
+选项区 & 183 & 0.945 & 0.863 \\
+\hline
+输入框 & 167 & 0.976 & 0.946 \\
+\hline
+选项框 & 132 & 0.871 & 0.750 \\
+\hline
+弹窗 & 64 & 0.969 & 0.969 \\
+\hline
+开关 & 38 & 1.000 & 0.947 \\
+\hline
+页面指示器 & 29 & 0.724 & 0.483 \\
+\hline
+滚动选择器 & 26 & 1.000 & 0.962 \\
+\hline
+广告 & 22 & 0.909 & 0.864 \\
+\hline
+地图 & 15 & 0.933 & 0.867 \\
+\hline
+滑块 & 14 & 0.714 & 0.500 \\
+\hline
+日期选择器 & 13 & 1.000 & 1.000 \\
+\hline
+多重滚动选择器 & 12 & 1.000 & 1.000 \\
+\hline
+滑块容器区 & 7 & 1.000 & 0.857 \\
+\hline
+通知 & 6 & 1.000 & 0.500 \\
+\hline
+\textbf{ALL} & \textbf{9018} & \textbf{0.923} & \textbf{0.846} \\
+\hline
+\end{tabular}
+\caption{各类型UI控件的Grounding性能（F1 Score）。}
+\label{tab:gui_grounding}
+\end{table}
+
+表\ref{tab:gui_referring}展示了模型在Referring任务上的属性预测性能。整体加权平均F1达到0.905，其中"类型"属性预测最为准确（F1=0.944），"内部注释"（控件内显示文本）的识别也保持较高水平（F1=0.915）。相比之下，"当前值"属性的召回率较低（0.551），主要因为该属性仅在滑块、进度条等少数控件上有意义，样本稀疏且形态多样。
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{属性} & \textbf{实际样本数} & \textbf{预测总数} & \textbf{精确率} & \textbf{召回率} & \textbf{F1} \\
+\hline
+内部注释 & 5773 & 5619 & 0.927 & 0.903 & 0.915 \\
+\hline
+图标含义 & 1624 & 1485 & 0.898 & 0.821 & 0.858 \\
+\hline
+外部注释 & 1927 & 1814 & 0.831 & 0.783 & 0.806 \\
+\hline
+当前值 & 198 & 146 & 0.747 & 0.551 & 0.634 \\
+\hline
+是否不可交互 & 585 & 529 & 0.817 & 0.739 & 0.776 \\
+\hline
+是否已激活 & 545 & 487 & 0.867 & 0.774 & 0.818 \\
+\hline
+类型 & 10072 & 9853 & 0.954 & 0.934 & 0.944 \\
+\hline
+\textbf{加权平均} & \textbf{20724} & \textbf{19933} & \textbf{0.923} & \textbf{0.889} & \textbf{0.905} \\
+\hline
+\end{tabular}
+}
+\caption{Referring任务各属性预测性能。}
+\label{tab:gui_referring}
+\end{table}
+
+综合表\ref{tab:gui_grounding}与表\ref{tab:gui_referring}的细粒度统计，可进一步归纳两类主要误差来源：\textbf{（1）极密集区域的近邻混淆}（图标间距过小导致误点相邻控件）、\textbf{（2）文本与控件关系未显式建模时的语义歧义}（如“用户名/手机号”标签与输入框的绑定不稳定）。对应地，本文在数据工程侧提供了针对性缓解：通过\textbf{关系图谱与状态向量}为控件间关系与页面状态提供显式监督以降低语义歧义；引入\textbf{负样本与工具校验}减少“看起来像可点但不可点”的误命中；同时以多源数据覆盖更多页面布局与控件形态，提升模型在真实分辨率与真实布局下的泛化能力。
 
 \section{本章小结}
-本章面向GUI场景提出了一套提升视觉语言模型屏幕理解能力的系统方案。我们首先明确Referring与Grounding两项核心能力及其在GUI领域的瓶颈；随后以多源数据工程为重点，构建了开源清洗、闭源精标与合成数据融合的闭环流水线，并通过分类学、关系图谱与状态向量提供更强语义监督；最后在AnyRes高分辨率架构与DMT双阶段混合微调策略的配合下，实现对细粒度定位与中文语义理解的协同提升，为后续UI Agent的任务规划与执行奠定基础。
+本章面向移动端GUI这一“控件密集、文字细小、状态易变”的垂直场景，提出了一套提升视觉语言模型屏幕理解能力的系统方案，围绕Referring与Grounding两项核心能力给出从数据到训练的完整落地路径。本文的主要工作与贡献可概括为：
+\begin{itemize}
+  \item \textbf{多源数据工程流水线}：从任务需求出发构建“收集$\rightarrow$结构化初始化$\rightarrow$混合标注与属性补全$\rightarrow$任务/QA生成$\rightarrow$质控迭代”的数据流程，融合开源清洗数据（RICO/CLAY、MobileViews、OS-Atlas）\citep{deka2017rico,li2022clay,gao2024mobileviews,wu2024osatlas}、闭源精标数据（v1/v2）与必要的合成/重写样本，兼顾分布覆盖与质量可控，为GUI能力持续迭代提供数据基础。
+  \item \textbf{面向可解释语义与可执行定位的标注规范}：提出细粒度控件分类学（23类核心控件）、有向关系图谱（如标签--控件绑定、值--控件绑定与功能依赖）以及多维属性与状态向量（Activated/Interactable/Filled、图标释义、内部文本等），并通过人机协同与一致性校验降低噪声，显式缓解GUI中的语义歧义与“看似可点但不可点”的误监督问题。
+  \item \textbf{高分辨率感知与坐标生成训练设计}：采用AnyRes分辨率自适应机制保留全局布局与局部细节，并以文本化坐标与专用Token约束bbox生成的可解析性；结合DMT双阶段混合微调在GUI专用能力注入与通用对齐之间取得平衡，缓解能力冲突与灾难性遗忘。
+  \item \textbf{系统评测与量化验证}：在Top 200应用的真实页面分布上进行控件级评测，给出不同数据配置与细粒度控件/属性维度的结果统计。实验表明，引入开源数据与闭源精标数据可显著提升整体性能（Grounding F1由0.324提升至0.846，Referring F1由0.523提升至0.905），并揭示了密集小控件近邻混淆与文本绑定歧义等关键误差模式，为后续UI Agent的任务规划与执行奠定基础。
+\end{itemize}
 
