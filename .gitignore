@@ -54,3 +54,6 @@ source/fduthesis-code.*
 source/fduthesis-en.*
 test/*.sh
 test/latexmkrc
+
+# 允许跟踪论文 PDF
+!mypaper/mythesis.pdf
