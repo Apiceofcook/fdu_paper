@@ -8,7 +8,7 @@
 2. ✅ 创建 6 个独立章节文件
    - `chapter1.tex` - 绪论
    - `chapter2.tex` - 相关工作
-   - `chapter3.tex` - 视觉数据构造范式
+   - `chapter3.tex` - 视觉数据构造框架
    - `chapter4.tex` - GUI
    - `chapter5.tex` - 世界知识
    - `chapter6.tex` - 结论
@@ -47,7 +47,7 @@ mypaper/
 ├── chapters/                    ← 章节目录（新建）
 │   ├── chapter1.tex            ← 第一章：绪论
 │   ├── chapter2.tex            ← 第二章：相关工作
-│   ├── chapter3.tex            ← 第三章：视觉数据构造范式
+│   ├── chapter3.tex            ← 第三章：视觉数据构造框架
 │   ├── chapter4.tex            ← 第四章：GUI
 │   ├── chapter5.tex            ← 第五章：世界知识
 │   └── chapter6.tex            ← 第六章：结论
@@ -96,7 +96,7 @@ mypaper/
   \mainmatter
   \input{chapters/chapter1}  % 第一章：绪论
   \input{chapters/chapter2}  % 第二章：相关工作
-  \input{chapters/chapter3}  % 第三章：视觉数据构造范式
+  \input{chapters/chapter3}  % 第三章：视觉数据构造框架
   \input{chapters/chapter4}  % 第四章：GUI
   \input{chapters/chapter5}  % 第五章：世界知识
   \input{chapters/chapter6}  % 第六章：结论
@@ -129,10 +129,10 @@ mypaper/
 ✓ 本章小结
 ```
 
-### Chapter 3: 视觉数据构造范式
+### Chapter 3: 视觉数据构造框架
 ```
 ✓ 问题定义
-✓ 构造范式框架
+✓ 构造框架
   - 数据表示
   - 构造流程
 ✓ 关键技术

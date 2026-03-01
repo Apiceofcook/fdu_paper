@@ -12,7 +12,7 @@ mypaper/
 ├── chapters/                     # 章节目录
 │   ├── chapter1.tex             # 第一章：绪论
 │   ├── chapter2.tex             # 第二章：相关工作
-│   ├── chapter3.tex             # 第三章：视觉数据构造范式
+│   ├── chapter3.tex             # 第三章：视觉数据构造框架
 │   ├── chapter4.tex             # 第四章：GUI
 │   ├── chapter5.tex             # 第五章：世界知识
 │   └── chapter6.tex             # 第六章：结论
@@ -81,7 +81,7 @@ mypaper/
 % 第二章：相关工作
 \input{chapters/chapter2}
 
-% 第三章：视觉数据构造范式
+% 第三章：视觉数据构造框架
 \input{chapters/chapter3}
 
 % 第四章：GUI
@@ -124,10 +124,10 @@ mypaper/
 
 ---
 
-### Chapter 3: 视觉数据构造范式 (chapter3.tex)
+### Chapter 3: 视觉数据构造框架 (chapter3.tex)
 **内容结构：**
 - 问题定义
-- 构造范式框架
+- 构造框架
   - 数据表示
   - 构造流程
 - 关键技术
