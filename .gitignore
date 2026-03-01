@@ -57,3 +57,8 @@ test/latexmkrc
 
 # 允许跟踪论文 PDF
 !mypaper/mythesis.pdf
+
+# 允许跟踪 figures 目录下的所有文件（包括 pdf）
+!mypaper/figures/
+!mypaper/figures/**
+!mypaper/figures/**/*.pdf
