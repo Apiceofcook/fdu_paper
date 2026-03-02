@@ -2,10 +2,11 @@
 \chapter{多模态数据构造框架}
 
 \section{背景}
-当前多模态大语言模型（Multimodal Large Language Model, MLLM）的训练正面临“\textbf{数据质量而非数据数量}”成为主要瓶颈的阶段性转折。一方面，网络抓取的图文对存在噪声大、对齐弱（Misalignment）、图像质量参差不齐（水印、模糊）等问题；另一方面，人工标注成本高且难以覆盖复杂推理与多样化交互格式。已有研究（如ShareGPT4V、MMEvol、SynthVLM）均表明：\textbf{高信息密度、高对齐度与高推理密度的数据}，往往比盲目扩大规模更能有效提升模型能力\citep{chen2023sharegpt4v,xu2024mmevol,liu2025synthvlm}。
+当前多模态大语言模型（Multimodal Large Language Model, MLLM）的训练正面临“\textbf{数据质量而非数据数量}”成为主要瓶颈的阶段性转折。正如第1章所指出的，能力上限越来越受制于训练信号的\textbf{质量、对齐与推理密度}：互联网抓取的图文对普遍存在噪声大、语义对齐弱（Misalignment）、图像质量参差不齐（水印、模糊）等问题；而人工标注虽可靠，却成本高且难以覆盖长尾场景、复杂交互形态与多步推理链路。更关键的是，真实落地任务中暴露出的误差往往具有“结构性”——模型可能\textbf{看不清/定位不稳}（小目标与文字细节）、\textbf{绑不牢}（视觉证据与语言描述对应松散）、\textbf{想不全}（需要先识别再推断的任务易短路或幻觉）。因此，提升MLLM能力的关键不在于盲目扩规模，而在于能否持续产出\textbf{高信息密度、高对齐度与高推理密度}的数据\citep{chen2023sharegpt4v,xu2024mmevol,liu2025synthvlm}。
 
-为系统性描述并复用高质量数据生产经验，本文提出\textbf{Auto-Evol}多模态合成数据构造框架：将“合成数据生成”从单步的“图$\rightarrow$文/问答”重构为一个包含\textbf{正反双向链路}、\textbf{任务导向的原子问题生成}、\textbf{代理式生成与进化增强}、\textbf{多维校验与闭环反馈}的工程系统。该框架可统一承载不同任务域的数据生产需求：例如第\ref{chap:gui}章面向GUI的Referring/Grounding能力提升与第\ref{chap:world_knowledge}章面向世界知识的RecQA/KnowQA/FinalQA体系，均可视为Auto-Evol在不同任务路由下的具体实例。
-更进一步，本章并不将框架作为“抽象概念”孤立呈现，而是以第\ref{chap:gui}章与第\ref{chap:world_knowledge}章的\textbf{数据构造方法}为起点，结合ShareGPT4V、MMEvol、SynthVLM、Synthesize Step-by-Step等工作的可复用组件\citep{chen2023sharegpt4v,xu2024mmevol,liu2025synthvlm,li2024synthesize}，总结得到可落地、可迭代、可验证的多模态数据构造方法学。
+前两章的两条任务主线进一步把这一瓶颈“落到可操作的工程问题”上：在GUI场景（第\ref{chap:gui}章）中，UI Agent要求模型在控件密集、文字细小且状态易变的界面中完成Referring/Grounding等\textbf{可执行的像素级对齐}，数据必须同时提供\textbf{紧致bbox、OCR对齐、关系/状态约束}并可自动质检；在世界知识场景（第\ref{chap:world_knowledge}章）中，模型需要将图像中的\textbf{具体实例}锚定到知识空间中的\textbf{抽象实体与事实}，并在条件约束下完成\textbf{先识别再推理}的链路，数据必须保证\textbf{对齐可验证}并尽可能提供\textbf{过程性约束}以避免短路学习。两类实践在差异中形成互补：GUI强调\textbf{精度与可执行}，世界知识强调\textbf{对齐可信与推理贯通}；但二者也揭示了多模态数据构造的共通骨架——\textbf{数据源组织}、\textbf{结构化初始化}、\textbf{任务分解与生成}、\textbf{增强/过滤与多维校验}、以及\textbf{失败回流与闭环迭代}。
+
+为系统性描述并复用上述高质量数据生产经验，本文提出\textbf{Auto-Evol}多模态合成数据构造框架：将“合成数据生成”从单步的“图$\rightarrow$文/问答”升级为一个包含\textbf{正反双向链路}、\textbf{任务导向的原子问题生成}、\textbf{代理式生成与进化增强}、\textbf{多维校验与闭环反馈}的工程系统。该框架吸收并统一了ShareGPT4V、MMEvol、SynthVLM、Synthesize Step-by-Step等工作中可复用的关键组件\citep{chen2023sharegpt4v,xu2024mmevol,liu2025synthvlm,li2024synthesize}，并以第\ref{chap:gui}章与第\ref{chap:world_knowledge}章的\textbf{数据构造方法}为起点，抽象总结出一套\textbf{可落地、可迭代、可验证}的多模态数据构造方法学，为后续在更多任务域中复用与扩展提供统一底座。
 
 % 注：若后续需要对章节号引用更严谨，可在对应章节加label，这里先用文字描述避免未定义引用。
 
@@ -73,13 +74,15 @@ Pipeline中的“数据增强”可理解为对训练信号的三条系统性“
 当某类任务通过率持续偏低时，系统触发右侧“重写”回路：要么对指令/答案进行重写（保持图像不变），要么回流到“生成图片”分支重新合成更契合任务的图像，再进入流程。该闭环使数据系统具备“自我修复”的能力，避免一次性生成导致的质量不可控的同时也不要浪费以得倒的信息。
 
 \subsection{从两类任务实践到统一框架的归纳}
-需要强调的是，Auto-Evol并非“从概念出发”的抽象框图，也不只是对两章工作的事后总结，而是建立在\textbf{系统性相关工作调研}与\textbf{本文多模态数据/训练实践}之上的方法学抽象：一方面，ShareGPT4V、SynthVLM、MMEvol、Synthesize Step-by-Step等工作分别从高密度对齐、逆向数据工程、进化式增强与过程可执行推理等角度提供了可复用的模块化思想\citep{chen2023sharegpt4v,liu2025synthvlm,xu2024mmevol,li2024synthesize}；另一方面，本文在多模态任务落地过程中形成了关于多源数据组织、结构化标注、过程性监督与质量控制的一系列工程经验。下面以GUI与世界知识两条主线作为代表性实例说明该框架的归纳来源：
+如前文所述，当前多模态模型能力上限越来越受制于训练数据的\textbf{质量、对齐与推理密度}，并在真实落地中呈现出一系列“结构性”误差模式：例如对小目标与文字细节不稳定、视觉证据与语言描述绑定松散、以及在“先识别再推断”的任务上易出现短路映射或幻觉。对应这一瓶颈，本文采用“\textbf{从精细可执行监督到可控推理监督，再到统一框架抽象}”的递进路线：先在GUI任务中用强约束、可执行的像素级监督打牢感知与定位基座，再在世界知识任务中引入可验证对齐与过程性推理监督贯通“识别$\rightarrow$知识$\rightarrow$推断”，最终将两类实践中可复用的模块上升为统一的数据生产方法学。
+
+需要强调的是，Auto-Evol并非“从概念出发”的抽象框图，也不只是对两章工作的事后总结，而是建立在\textbf{系统性相关工作调研}与\textbf{本文多模态数据/训练实践}之上的方法学抽象：一方面，ShareGPT4V、SynthVLM、MMEvol、Synthesize Step-by-Step等工作分别从高密度对齐、逆向数据工程、进化式增强与过程可执行推理等角度提供了可复用的模块化思想\citep{chen2023sharegpt4v,liu2025synthvlm,xu2024mmevol,li2024synthesize}；另一方面，本文在GUI与世界知识两类高难任务的落地过程中沉淀了关于多源数据组织、结构化初始化/标注、中间表征、过程性监督与质量控制的工程经验。下面以两条主线作为代表性实例说明该框架的归纳来源：
 \begin{itemize}
-  \item \textbf{GUI主线（第\ref{chap:gui}章）}：以\textbf{结构化初始化}与\textbf{细粒度标注}为核心，将“截图”转化为可计算的控件集合（bbox、OCR、状态向量、关系图谱），再围绕Referring/Grounding生成任务化监督，并通过多源融合与质控迭代提升稳定性。该主线强调“\textbf{可执行定位}”与“\textbf{可解释语义}”的双对齐，并体现了细粒度对齐与分层能力路由在复杂交互场景中的必要性。
-  \item \textbf{世界知识主线（第\ref{chap:world_knowledge}章）}：以\textbf{实体锚定}与\textbf{知识注入}为核心，通过“词条$\rightarrow$图片$\rightarrow$caption$\rightarrow$相关性过滤$\rightarrow$RecQA/KnowQA/FinalQA”建立从知识源到可学习多模态监督的转化链路，并通过\textbf{带推理过程（Think/CoT）的FinalQA}强化“先识别再推理”的可迁移推理策略。该主线强调“\textbf{可验证对齐}”与“\textbf{推理链路贯通}”，对应了过程监督与可校验链路对世界知识推理能力提升的关键作用。
+  \item \textbf{GUI主线（第\ref{chap:gui}章）}：以\textbf{结构化初始化}与\textbf{细粒度标注}为核心，将“截图”转化为可计算、可追溯的控件集合（bbox、OCR、状态向量、关系图谱），再围绕Referring/Grounding等任务生成可执行监督，并通过多源融合与质控迭代提升稳定性。该方法很好解决了“\textbf{小目标/文字细节不稳定}”与“\textbf{语义--几何绑定松散}”等结构性问题：用强约束的像素级锚点把模型输出绑定到可执行目标，强调“\textbf{可执行定位}”与“\textbf{可解释语义}”的双对齐，并体现了细粒度对齐与分层能力路由在复杂交互场景中的必要性。
+  \item \textbf{世界知识主线（第\ref{chap:world_knowledge}章）}：以\textbf{实体锚定}与\textbf{知识注入}为核心，通过“词条$\rightarrow$图片$\rightarrow$caption$\rightarrow$相关性过滤$\rightarrow$RecQA/KnowQA/FinalQA”建立从知识源到可学习多模态监督的转化链路，并通过\textbf{带推理过程（Think/CoT）的FinalQA}强化“先识别再推理”的可迁移推理策略。该方法针对“\textbf{短路映射/幻觉}”与“\textbf{推理链路缺失}”等问题：以caption作为可依赖中间表征提升可验证性，以分数化对齐过滤抑制错配噪声，并用过程监督把推理从黑箱答案转为可学习的链路，从而强调“\textbf{可验证对齐}”与“\textbf{推理链路贯通}”。
   \item \textbf{跨任务复用的工程实践（本文其他多模态工作）}：除上述两类任务外，本文在多模态数据构造与训练中还沉淀了可跨任务复用的通用做法，例如：以统一的“源信息池”承接不同数据源与标注形态、以三基础能力链路统一组织监督信号、以及以“难度/正确性/覆盖多样性”为目标对数据进行评测式校验。这些实践与调研结论共同促成了Auto-Evol作为统一框架的可迁移性与可扩展性。
 \end{itemize}
-二者看似任务不同，但其共同结构恰好对应Auto-Evol的闭环：\textbf{统一表示}承接多源输入，\textbf{原子化任务拆解}把复杂能力拆成可监督信号，\textbf{分层代理生成}提升信息密度与多样性，\textbf{多维过滤/校验与回流}控制噪声与幻觉并推动持续迭代。因此，Auto-Evol可被视为“面向不同任务路由的数据生产系统”，既能覆盖GUI这类强几何/强交互任务，也能覆盖世界知识这类强对齐/强推理任务。
+综上，GUI与世界知识两条主线在“任务形态”上差异显著，但其共同结构恰好对应Auto-Evol的闭环：\textbf{数据源组织}决定覆盖与可控性（真实收集与生成/反向对齐互补），\textbf{结构化初始化}沉淀可复用的源信息与锚点（如控件集合或caption中间表征），\textbf{原子化任务拆解与路由}把复杂能力分解为感知/理解/推理三类可监督单元（如Referring/Grounding或RecQA/KnowQA/FinalQA），\textbf{代理式增强}提升信息密度与难度分布，\textbf{多维过滤/评测式校验}在数据侧前置约束正确性与可验证性，并通过\textbf{回流重写/重生成}将失败样本转化为下一轮迭代目标。由此，Auto-Evol回答了第1章提出的核心问题：将“零散的一次性合成”升级为\textbf{可控、可评测、可迭代}的数据生产系统，使高信息密度、高对齐度与高推理密度的训练信号能够稳定产出与跨任务复用。
 
 \section{模块有效性验证}
 Auto-Evol的关键模块并非凭经验堆叠，其必要性可在第4章与第5章的实验结果中得到直接验证。下面从“模块$\rightarrow$证据”的角度进行归因式总结。
@@ -88,7 +91,7 @@ Auto-Evol的关键模块并非凭经验堆叠，其必要性可在第4章与第5
 在GUI任务中，仅靠基线模型性能较低；引入开源清洗数据后指标显著提升，而进一步融合闭源精标数据后提升更为明显：如表\ref{tab:gui_data_ablation}所示，Grounding F1由0.324提升至0.846，Referring F1由0.523提升至0.905。该结果表明，\textbf{多源覆盖 + 结构化标注 + 质量控制}能够显著提高定位与理解的稳定性，是Auto-Evol“数据初始化--协作标注--过滤”的直接实证。
 
 \paragraph{（B）中间表征与相关性过滤的必要性（对应caption与对齐校验）}
-在世界知识任务中，caption不仅提供“更丰富的描述”，更作为可依赖的中间表征支撑相关性过滤与后续QA构造。实验一的结论指出：\textbf{Image Caption对识别显著有益}（表\ref{tab:wk_ablation_part1}），说明“中间表征 + 对齐筛选”能够为实体锚定提供更稳健的训练信号，对应Auto-Evol中“过滤相关性、准确性”与“相关性校验”的设计动机。
+在世界知识任务中，caption不仅提供“更丰富的描述”，更作为可依赖的中间表征支撑相关性过滤与后续QA构造。实验一的结论指出：\textbf{Image Caption对识别显著有益}（表\ref{tab:wk_ablation_part1}），说明“中间表征 + 对齐筛选”能够为实体锚定提供更稳健的训练信号，对应Auto-Evol中“过滤相关性、准确性”与“相关性校验”的设计动机。进一步地，第\ref{chap:world_knowledge}章在图文相关性过滤环节给出量化证据：在随机抽取的2000条“图片--词条”样本上，若仅做相关/不相关二分类过滤，最终保留约1009条；引入基于caption的1$\sim$5相关性分数并保留$\ge$3分样本后，可保留约1511条，同时“几乎无幻觉”样本占比由72.6\%提升至80.3\%，且“大部分幻觉”占比由7.9\%降至4.2\%（表\ref{tab:wk_rel_filter_hallu}）。这表明：caption作为中间表征不仅提升了对齐判别的可解释性，也使分数化过滤能够在\textbf{覆盖率}与\textbf{对齐可靠性}之间取得更优平衡，从而为后续RecQA/KnowQA/FinalQA提供更干净的实体锚点与知识上下文。
 
 \paragraph{（C）显式推理过程数据对推理能力的显著增益（对应原子化/推理代理/执行校验）}
 第\ref{chap:world_knowledge}章进一步揭示：仅监督最终答案的FinalQA可能诱发“短路映射”，导致推理指标提升不显著甚至下降；而当FinalQA加入简要推理过程（Think/CoT）并扩充数据分布后，final相关指标\textbf{出现显著提升}。如表\ref{tab:wk_think_improve}所示，在Chinese SimpleVQA上，\texttt{Ovis2.5\_9B\_think\_part123}相对\texttt{qwen2.5-VL-7b}在F1\_Final上提升11.9个点（同时F1\_Rec提升16.1个点），验证了“\textbf{显式推理链路监督}”对可迁移推理能力的关键作用。这一现象与Auto-Evol强调的“原子化任务拆解 + 推理代理生成 + 多维校验（含可执行/一致性校验）”相一致：通过过程性监督与可验证机制，才能在提升推理强度的同时抑制幻觉与短路学习。

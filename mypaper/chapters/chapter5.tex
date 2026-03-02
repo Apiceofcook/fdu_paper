@@ -2,7 +2,9 @@
 \chapter{世界知识能力提升方案}
 \label{chap:world_knowledge}
 
-\section{背景和挑战}
+\section{背景}
+承接第\ref{chap:gui}章，本文已经在GUI这一“高分辨率、控件密集、状态易变”的场景中，通过\textbf{结构化初始化}与\textbf{像素级可执行监督}（bbox/OCR/关系/状态等）提升了Referring与Grounding等基础能力，验证了“以数据工程前置约束训练信号、从源头控制噪声”的有效性。然而，GUI任务更多关注\textbf{可见语义与几何定位}（看得准、点得稳），对“图像背后隐含的事实、概念与关系”缺乏直接而可验证的监督，难以覆盖开放世界场景中普遍存在的\textbf{先识别再调用知识、再条件筛选}的推理链路。本章进一步面向世界知识能力提升：在延续数据工程范式的同时，将监督重心推进到\textbf{知识级对齐可信度}与\textbf{推理过程可学习}，并通过类别框架、caption中间表征、相关性过滤与三类QA任务分解，把分散知识转化为可学习、可校验的多模态训练信号。
+
 近年来，大型视觉语言模型（Vision--Language Model, VLM）通过在海量图文对上的预训练，习得了强大的视觉感知与语言生成能力。然而，这类能力往往停留在"\textbf{视觉层面的描述}"，即对颜色、形状、人物姿态等可见信息进行总结，难以进一步回答"图像背后\textbf{隐含的事实、概念与关系}"。
 
 本文将\textbf{世界知识（World Knowledge）}定义为对物理世界、社会文化、历史事件、科学技术等领域的事实、概念、关系与常识的综合掌握，其本质是一个庞大且交织的知识网络。图\ref{fig:wk_case}展示了一个直观的对比案例：对于经典电影《泰坦尼克号》的标志性场景，缺乏世界知识的模型仅能给出浅层描述——"一个男人和一个女人站在船头"；而具备世界知识的模型则能识别出这是1997年上映的电影《泰坦尼克号》，由詹姆斯·卡梅隆执导，主演是莱昂纳多·迪卡普里奥和凯特·温斯莱特，并进一步理解这一场景描绘了主角杰克和露丝在船头"飞翔"的浪漫时刻，象征着自由和爱情，以及这部电影在全球取得的巨大商业成功和文化影响力。这种从"看见"到"理解"的跃迁，正是世界知识赋予模型的核心能力。
@@ -102,12 +104,36 @@
   \item \textbf{阈值化过滤与尽可能保留}：考虑到大模型判别仍存在误差，本文并非“一刀切”地仅保留最高分样本，而是通过设定分数阈值与抽样复核策略，尽可能保留潜在相关图片（如4分、部分3分样本），以在覆盖率与噪声控制之间取得平衡。过滤后的样本将进入后续QA构造，从源头降低“错图错标”导致的对齐噪声。
 \end{itemize}
 
+\paragraph{过滤效果对比与人工评估。}
+为量化“相关性分数”策略对数据\textbf{保留率}与\textbf{幻觉噪声}的影响，本文从原始抓取结果中随机抽取2000条“图片--词条”样本进行对比实验。若不设置相关性分数、仅让模型输出“相关/不相关”的二分类判断，则最终只能保留约1009条数据；而在制定1$\sim$5相关性分数并保留3分及以上样本后，可保留约1511条数据，显著提高可用数据覆盖。
+
+进一步地，本文对上述2000条样本及其不同过滤策略后的保留子集进行人工抽检，主要关注上一步生成的caption在对照词条与图片时是否出现知识性幻觉（例如模型不认识/误识别实体，从而编造与词条不符的背景事实）。本文将幻觉程度划分为三档：\textbf{几乎没有幻觉}、\textbf{有部分幻觉}、\textbf{大部分幻觉}。统计结果如表\ref{tab:wk_rel_filter_hallu}所示。
+
+\begin{table}[htbp]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{数据设置} & \textbf{样本数} & \textbf{几乎无幻觉} & \textbf{部分幻觉} & \textbf{大部分幻觉} \\
+\midrule
+过滤前（未过滤） & 2000 & 1231（61.6\%） & 511（25.6\%） & 258（12.9\%） \\
+直接相关性过滤（二分类） & 1009 & 733（72.6\%） & 196（19.4\%） & 80（7.9\%） \\
+相关性分数过滤（$\ge$3分） & 1511 & 1213（80.3\%） & 235（15.6\%） & 63（4.2\%） \\
+\bottomrule
+\end{tabular}
+\caption{不同图文相关性过滤策略下的样本保留与caption幻觉程度统计（括号内为占比，保留1位小数）。}
+\label{tab:wk_rel_filter_hallu}
+\end{table}
+
+可以看到，\textbf{相关性分数的制定}在保留更多数据的同时，“几乎无幻觉”样本占比也显著上升，并有效降低“部分/大部分幻觉”样本比例。这说明分数化判别相比二分类更能缓解因大模型自身不认识或误识别带来的误判与幻觉噪声，从而在覆盖率与对齐质量之间取得更优平衡。
+
 \subsection{QA对生成：从描述到三元组任务}
 对应图\ref{fig:wk_data_pipeline}中的"QA对生成"环节，为了解耦感知与推理，本文构造三类互补问答对：
 \begin{itemize}
-  \item \textbf{RecQA（Recognition QA）}：对应“模型\textbf{看见}图片”的能力，问题围绕“这是谁/这是什么/来自哪里”等识别任务，答案为实体或关键属性。其目标是将视觉特征稳定锚定到词条实体，解决“看到但叫不出名字”的问题。
-  \item \textbf{KnowQA（Knowledge QA）}：对应“模型\textbf{知道}关于该实体的世界知识”的能力，问题强调外部知识（历史、文化、科学属性等），形式上可不依赖视觉信息，但与图片实体强相关。其目标是向模型注入可泛化的背景事实，解决“认识了但不了解”的问题。
-  \item \textbf{FinalQA（Reasoning QA）}：对应“模型\textbf{理解}图片并能调用知识推理”的能力，问题需要“先识别再用知识推理”，可是一跳或多跳链路（如识别实体$\rightarrow$回忆知识$\rightarrow$条件筛选）。其目标是打通RecQA与KnowQA形成的知识链路，推动模型从“描述/识别”走向“解释/推断”。
+  \item \textbf{RecQA（Recognition QA）}：对应“模型\textbf{看见}图片”的能力，问题围绕“这是谁/这是什么/来自哪里”等识别任务，答案为实体或关键属性。其目标是将视觉特征稳定锚定到词条实体，解决“看到但叫不出名字”的问题。在生成时，模型输入包括图片、图片对应的caption、目标词条以及词条所属类别，用于约束识别问题的指向性与答案空间。
+  \item \textbf{KnowQA（Knowledge QA）}：对应“模型\textbf{知道}关于该实体的世界知识”的能力，问题强调外部知识（历史、文化、科学属性等），形式上可不依赖视觉信息，但与图片实体强相关。其目标是向模型注入可泛化的背景事实，解决“认识了但不了解”的问题。在生成时，模型输入为RecQA问答对与caption，并要求其\textbf{基于RecQA的答案（已识别实体）}提出相关知识问题，从而将知识提问锚定在正确实体上。
+  \item \textbf{FinalQA（Reasoning QA）}：对应“模型\textbf{理解}图片并能调用知识推理”的能力，问题需要“先识别再用知识推理”，可是一跳或多跳链路（如识别实体$\rightarrow$回忆知识$\rightarrow$条件筛选）。其目标是打通RecQA与KnowQA形成的知识链路，推动模型从“描述/识别”走向“解释/推断”。在生成时，模型输入同时包含RecQA与KnowQA两类QA，引导其融合“识别结论+知识要点”构造最终问题与答案，显式贯通两阶段信息。
 \end{itemize}
 
 三类QA分别对应不同能力层次：RecQA偏\textbf{感知/识别}，KnowQA偏\textbf{理解/知识}，FinalQA偏\textbf{推理/筛选}。这种拆分避免模型直接学习"图像$\rightarrow$最终答案"的捷径，从而提升泛化与可解释性。
@@ -152,6 +178,7 @@
 \begin{itemize}
   \item \textbf{规则约束与质量分数制定}：本文使用大模型对“问题--答案”对进行规则校验，重点约束：问题必须\textbf{同时依赖图像信息与外部知识}（既不能纯靠知识回答，也不能纯靠图像即可回答）；问题应当客观、明确且无歧义；答案必须唯一且不随时间变化；避免一个问题中同时询问两个子问题等。基于满足程度给出1$\sim$3的质量分数，其中3分表示完全合格，2分表示勉强合格但必须满足“唯一答案/时效稳定/单问题”这些关键约束，1分表示不合格。模型输出时给出简要理由，并采用固定格式（如“合格分数:[分数]”）便于解析。
   \item \textbf{低质量过滤与回收}：对低分样本进行过滤或回收重写，重点剔除多答案、表述模糊、主观化或时效性强的问题，从而保证训练信号的可学习性与评测的一致性。
+  \item \textbf{评测基准去重（hash去重，避免数据泄漏）}：为避免训练数据与评测基准（如Chinese SimpleVQA、SimpleVQA）在图像层面发生重叠导致评测泄漏，本文在构造训练集时对评测基准中的图片进行hash去重：对训练集与评测集图片分别计算感知哈希（perceptual hash，如pHash/dHash等），并以哈希值作为指纹建立索引；若训练样本图片与评测基准图片\textbf{哈希完全一致}，则直接从训练集中剔除；同时可进一步基于哈希间的\textbf{汉明距离}进行相似度判别，在距离小于阈值时视为近重复（如压缩、裁剪、分辨率变化导致的轻微差异）并一并过滤。该步骤从源头保证评测的独立性与结论可信度。
 \end{itemize}
 
 \section{训练与实验：从数据类型消融到CoT对齐}
@@ -163,6 +190,8 @@
   \item \textbf{Batch 1 / Part1}：使用最强模型构建第一批数据（Part1），确保高精度与高一致性；
   \item \textbf{Batch 2 及后续 / Part12, Part123}：引入不同模型与更多未见词条扩充数据分布，降低单一模型偏置，并提升长尾覆盖。
 \end{itemize}
+
+同时，在同一批次的数据构造流水线中，本文也会针对不同环节的侧重点选用不同模型，以进一步降低单一模型带来的偏置风险：词条生产依赖知识覆盖更强的文本模型\texttt{gpt5}；caption生成使用当时更强的多模态模型\texttt{Gemini-2.5-pro}与\texttt{gpt-4o}以提升视觉描述与背景知识补全质量；后续RecQA/KnowQA/FinalQA的生成更偏向于从caption中抽取与融合知识，因而采用指令遵循更强且生成效率更高的\texttt{Gemini-2.5-flash}以提升规模化产出稳定性。
 
 \subsection{实验一：数据类型消融与冲突分析}
 本实验的目的在于\textbf{确定不同数据类型对世界知识能力是否具有正向影响}，并定位可能的任务冲突。评测指标包括识别侧（Correct、Accuracy、F1）与推理侧（Correct、Accuracy、F1），分别对应Recognition与Final两类任务。
@@ -180,8 +209,8 @@
 \small
 \renewcommand{\arraystretch}{1.3}
 \resizebox{\linewidth}{!}{
-\begin{tabular}{|l|c|c|c|c|c|c|}
-\hline
+\begin{tabular}{lcccccc}
+\toprule
 \textbf{Model} &
 \textbf{Correct\_Rec} &
 \textbf{Acc\_Rec} &
@@ -189,25 +218,20 @@
 \textbf{Correct\_Final} &
 \textbf{Acc\_Final} &
 \textbf{F1\_Final} \\
-\hline
+\midrule
 qwen2.5-VL-7b &
 41.3 & 44.6 & 42.9 & 39.5 & 42.1 & 40.8 \\
-\hline
 Ovis2.5\_9B\_base &
 27.9 & 28.3 & 28.1 & 36.8 & \textbf{\underline{37.2}} & 37.0 \\
-\hline
 Ovis2.5\_9B\_part1\_all\_e1 &
 \textbf{\underline{32.9}} & \textbf{\underline{33.3}} & \textbf{\underline{33.1}} & 36.3 & 36.3 & 36.3 \\
-\hline
 Ovis2.5\_9B\_part1\_all\_e2 &
 32.2 & 32.8 & 32.5 & 36.2 & 36.2 & 36.2 \\
-\hline
 Ovis2.5\_9B\_part1\_RKFQA\_e1 &
 31.2 & 31.6 & 31.4 & \textbf{\underline{37.1}} & 37.1 & \textbf{\underline{37.1}} \\
-\hline
 Ovis2.5\_9B\_part1\_RKQA\_e1 &
 31.6 & 32.0 & 31.8 & 35.2 & 35.3 & 35.2 \\
-\hline
+\bottomrule
 \end{tabular}
 }
 \caption{实验一：Part1数据与不同数据类型配置的消融结果（Chinese SimpleVQA）。Rec表示Recognition；Acc表示Accuracy；Part1表示第一批数据；all表示全部类型数据；e表示训练轮次；RKF分别表示RecQA、KnowQA与FinalQA。}
@@ -230,8 +254,8 @@ Ovis2.5\_9B\_part1\_RKQA\_e1 &
 \small
 \renewcommand{\arraystretch}{1.3}
 \resizebox{\linewidth}{!}{
-\begin{tabular}{|l|c|c|c|c|c|c|}
-\hline
+\begin{tabular}{lcccccc}
+\toprule
 \textbf{Model} &
 \textbf{Correct\_Rec} &
 \textbf{Acc\_Rec} &
@@ -239,22 +263,19 @@ Ovis2.5\_9B\_part1\_RKQA\_e1 &
 \textbf{Correct\_Final} &
 \textbf{Acc\_Final} &
 \textbf{F1\_Final} \\
-\hline
+\midrule
 qwen2.5-VL-7b &
 41.3 & 44.6 & 42.9 & 39.5 & 42.1 & 40.8 \\
-\hline
 Ovis2.5\_9B\_part12 &
 33.9 & 34.3 & 34.1 & 36.6 & 36.7 & 36.7 \\
-\hline
 Ovis2.5\_9B\_think\_part12 &
 34.4 & 37.6 & 35.9 & 38.6 & 41.3 & 39.9 \\
-\hline
 Ovis2.5\_9B\_think\_part123 &
 \textbf{57.5} & \textbf{60.7} & \textbf{59.0} & \textbf{51.3} & \textbf{54.2} & \textbf{52.7} \\
-\hline
+\midrule
 \textbf{Gap} &
 +16.2 & +16.1 & +16.1 & +11.8 & +12.1 & +11.9 \\
-\hline
+\bottomrule
 \end{tabular}
 }
 \caption{实验二：引入Think/CoT与数据扩充后的改进结果（Chinese SimpleVQA）。Part12/Part123表示逐步扩充的数据批次；think表示FinalQA带推理过程的训练设置；Gap为最优模型相对qwen2.5-VL-7b的提升。}
@@ -271,8 +292,8 @@ Ovis2.5\_9B\_think\_part123 &
 \small
 \renewcommand{\arraystretch}{1.3}
 \resizebox{\linewidth}{!}{
-\begin{tabular}{|l|c|c|c|c|c|c|}
-\hline
+\begin{tabular}{lcccccc}
+\toprule
 \textbf{Model} &
 \textbf{Correct\_Rec} &
 \textbf{Acc\_Rec} &
@@ -280,19 +301,17 @@ Ovis2.5\_9B\_think\_part123 &
 \textbf{Correct\_Final} &
 \textbf{Acc\_Final} &
 \textbf{F1\_Final} \\
-\hline
+\midrule
 qwen2.5-VL-7b &
 41.3 & 44.6 & 42.9 & 39.5 & 42.1 & 40.8 \\
-\hline
 Qwen2.5-VL-72B &
 45.7 & 48.5 & 47.1 & \textbf{\underline{49.0}} & \textbf{\underline{53.4}} & \textbf{\underline{51.1}} \\
-\hline
 Ovis2.5\_9B (Ours) &
 \textbf{\underline{47.4}} & \textbf{\underline{53.6}} & \textbf{\underline{50.3}} & 48.1 & 52.1 & 50.0 \\
-\hline
+\midrule
 \textbf{Gap} &
 +6.1 & +9.0 & +7.4 & +8.6 & +10.0 & +9.2 \\
-\hline
+\bottomrule
 \end{tabular}
 }
 \caption{最终结果：Chinese SimpleVQA。Gap为Ovis2.5\_9B相对qwen2.5-VL-7b的增益。}
@@ -303,18 +322,16 @@ Ovis2.5\_9B (Ours) &
 \centering
 \small
 \renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|c|c|c|}
-\hline
+\begin{tabular}{lccc}
+\toprule
 \textbf{Model} & \textbf{Correct} & \textbf{Accuracy} & \textbf{F1} \\
-\hline
+\midrule
 qwen2.5-VL-7b & 43.2 & 45.6 & 44.3 \\
-\hline
 Qwen2.5-VL-72B & \textbf{\underline{49.4}} & 52.2 & \textbf{\underline{50.8}} \\
-\hline
 Ovis2.5\_9B (Ours) & 45.8 & \textbf{\underline{52.8}} & 49.0 \\
-\hline
+\midrule
 \textbf{Gap} & +2.6 & +7.2 & +4.7 \\
-\hline
+\bottomrule
 \end{tabular}
 \caption{最终结果：SimpleVQA。Gap为Ovis2.5\_9B相对qwen2.5-VL-7b的增益。}
 \label{tab:wk_final_english}
@@ -329,3 +346,4 @@ Ovis2.5\_9B (Ours) & 45.8 & \textbf{\underline{52.8}} & 49.0 \\
   \item \textbf{通过消融实验揭示冲突并验证改进有效性}：实验表明caption对识别指标具有稳定增益，而仅提供Direct Answer形式的FinalQA对推理指标提升不显著甚至下降，反映出FinalQA与RecQA在训练中存在短路映射带来的冲突；引入Think/CoT并扩充未见词条与多问一图数据后，final相关指标得到显著改善，并在Chinese SimpleVQA与SimpleVQA上取得具有竞争力的最终结果。
 \end{itemize}
 
+对比第\ref{chap:gui}章以\textbf{高精度、可执行、强约束}的像素级监督为核心、侧重“看得准、点得稳”的数据工程范式，本章进一步将监督重心推进到\textbf{知识级对齐可信度}与\textbf{推理过程可学习}：通过知识类别框架与反向对齐思路实现可控覆盖，以caption作为可依赖的中间表征支撑相关性分数过滤与对齐校验，并以RecQA/KnowQA/FinalQA（及Think/CoT）将“先识别再推理”的链路显式化，从而在保留更多数据的同时抑制幻觉与短路学习。上述实践不仅丰富了相较GUI更“先进”的增强、过滤与过程性约束模块，也沉淀出跨任务可复用的共通骨架（数据源组织、结构化初始化、任务分解与生成、增强/过滤与多维校验、回流迭代）。基于这些共通结构，下一章将进一步抽象并系统化提出完整的Auto-Evol多模态合成数据构造框架，将零散的一次性合成升级为可路由、可评测、可闭环迭代的数据生产系统。

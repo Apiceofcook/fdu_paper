@@ -14,6 +14,7 @@
 % 以下两个包用于生成示例文本，正式写作时可以删除
 \usepackage{kantlipsum}
 \usepackage{zhlipsum}
+\usepackage{booktabs} % 三线表（\toprule/\midrule/\bottomrule）
 
 % 其他常用宏包（根据需要取消注释）
 % \usepackage{amsmath}        % 数学公式
@@ -105,7 +106,7 @@
 % 摘要应简明扼要地概括论文的主要内容、研究方法、主要结论等
 % 建议字数：300-500字
 
-多模态大语言模型在通用视觉理解任务上快速发展，但训练数据普遍存在噪声大、对齐弱与推理密度不足等问题，使得“数据质量”逐渐成为能力提升瓶颈。本文首先从两类高难真实需求出发完成方法落地：其一，面向移动端用户界面使用场景，构建多源融合与精标语料，并结合高分辨率感知与训练策略提升理解与定位能力，在前200主流应用评测中取得显著提升；其二，面向世界知识，建立知识类别框架与端到端数据流水线构造框架，构造了三种不同类型的问答对并引入Think/CoT过程监督，增强“先识别再推理”的推理能力。基于上述实践与实验归因，本文进一步抽象并提出Auto-Evol多模态合成数据构造框架，将数据生产从单步“图像$\rightarrow$文本/问答”生成升级为闭环系统：通过结构化初始化、任务路由与原子问题生成、代理式增强、过滤校验与回流重写，稳定产出高信息密度、高对齐度与高推理密度的训练信号。用户移动界面理解与世界知识两条任务线的量化结果为该框架中“结构化锚点/中间表征/过程性监督/评测式质控”等关键设计提供了直接证据，表明该框架与数据工程方法可有效提升模型在真实场景中的定位、理解与知识推理表现，并为后续扩展提供通用框架。
+多模态大语言模型在通用视觉理解任务上快速发展，但训练数据普遍存在噪声大、对齐弱与推理密度不足等问题，使得“数据质量”逐渐成为能力提升瓶颈。本文围绕“以可控、可迭代、可验证的方式生产高质量训练信号”展开研究，首先从两类高难真实需求出发完成方法落地并形成可复用的数据工程范式：其一，面向移动端用户界面使用场景，提出以多源数据融合为核心的GUI数据工程流水线，构建包含紧致bbox、OCR对齐、控件关系与状态向量等结构化监督，并结合AnyRes高分辨率感知、文本化坐标表示与双阶段混合微调（DMT）提升Referring/Grounding等关键能力；在Top 200主流应用真实分布评测中，融合开源清洗与闭源精标数据将Grounding F1由0.324提升至0.846、Referring F1由0.523提升至0.905，验证了结构化可执行监督与质控迭代的有效性。其二，面向世界知识能力提升，建立7大类40子类的知识类别框架与端到端数据Pipeline，通过“词条$\rightarrow$图片$\rightarrow$caption$\rightarrow$相关性分数过滤$\rightarrow$RecQA/KnowQA/FinalQA”将分散知识转化为可学习、可校验的多模态监督；进一步在FinalQA中引入Think/CoT过程监督，缓解“短路映射”并强化“先识别再推理”的可迁移推理能力，在Chinese SimpleVQA与SimpleVQA上取得具有竞争力的结果。基于上述实践与实验归因，本文进一步抽象并提出Auto-Evol多模态合成数据构造框架，将数据生产从单步“图像$\rightarrow$文本/问答”生成升级为闭环系统：通过数据源组织与结构化初始化、能力路由与原子问题生成（感知/理解/推理三链路）、代理式增强、多维过滤与评测式校验，以及失败样本回流重写/重生成，稳定产出高信息密度、高对齐度与高推理密度的训练信号。两条任务线的量化证据共同支撑了该框架中“结构化锚点/中间表征/过程性监督/评测式质控”等关键设计，表明该框架与数据工程方法可有效提升模型在真实场景中的定位、理解与知识推理表现，并为后续跨任务扩展提供通用底座。
 
 \end{abstract}
 
@@ -118,7 +119,11 @@
 % and conclusions of the thesis
 % Recommended length: 200-400 words
 
-Multimodal large language models (MLLMs) have advanced rapidly in general vision understanding, yet their progress is increasingly bottlenecked by training data quality, including noise, weak vision--language alignment, and insufficient reasoning density. This thesis first develops and evaluates data and training solutions for two representative real-world challenges. For mobile graphical user interfaces (GUIs), we build multi-source, high-quality annotated data and combine it with high-resolution perception and tailored training strategies to improve core capabilities such as Referring and Grounding, yielding substantial gains on evaluations across top-200 real-world applications. For world knowledge enhancement, we establish a structured knowledge taxonomy and an end-to-end data pipeline, construct a RecQA/KnowQA/FinalQA triplet, and introduce Think/CoT-style process supervision to strengthen the transferable “recognize-then-reason” capability.
+Multimodal large language models (MLLMs) have advanced rapidly in general vision understanding, yet their progress is increasingly bottlenecked by training data quality, including noise, weak vision--language alignment, and insufficient reasoning density. This thesis investigates how to produce high-quality multimodal training signals in a controllable, iterative, and verifiable manner, and develops solutions along two challenging real-world task lines.
+
+For mobile graphical user interfaces (GUIs), we build a multi-source data engineering pipeline with structured, executable supervision, including tight bounding boxes, OCR alignment, element relations, and interaction states. On top of this data foundation, we adopt AnyRes-style high-resolution perception, text-formatted coordinate generation, and a dual-stage mixed tuning (DMT) strategy to improve Referring and Grounding. On a realistic evaluation set collected from top-200 popular applications, multi-source training yields large gains (e.g., Grounding F1 improves from 0.324 to 0.846, and Referring F1 from 0.523 to 0.905), demonstrating the effectiveness of structured supervision and quality-controlled iteration.
+
+For world knowledge enhancement, we construct an actionable taxonomy (7 super-categories and 40 sub-categories) and an end-to-end pipeline that transforms dispersed knowledge into learnable and checkable multimodal supervision via “entry $\rightarrow$ images $\rightarrow$ captions $\rightarrow$ relevance scoring/filtered alignment $\rightarrow$ RecQA/KnowQA/FinalQA”. We further introduce Think/CoT-style process supervision in FinalQA to mitigate shortcut learning and strengthen the transferable “recognize-then-reason” capability, achieving competitive results on Chinese SimpleVQA and SimpleVQA.
 
 Motivated by these practices and evidence, we then abstract and propose Auto-Evol, a framework that upgrades conventional one-shot generation (image $\rightarrow$ text/QA) into a closed-loop multimodal data production system. Auto-Evol integrates structured initialization, task routing with atomic question construction, agent-based augmentation, multi-dimensional filtering and verification, and feedback-driven rewriting, aiming to stably produce training signals with high information density, strong alignment, and high reasoning density. The empirical findings from the GUI and world knowledge tasks provide direct validation for key design choices in Auto-Evol, such as structured anchors, intermediate representations, process supervision, and evaluation-driven quality control. Overall, the proposed framework and data engineering methodology effectively improve localization, understanding, and knowledge reasoning in realistic settings, and offer a reusable framework for broader domains.
 
