@@ -285,7 +285,7 @@ Ovis2.5\_9B\_think\_part123 &
 从表\ref{tab:wk_think_improve}可见，\textbf{Think/CoT对final相关指标提升显著}，且在进一步扩充数据分布（Part123）后，recognition与final均获得同步大幅提升。这说明：世界知识能力的提升不仅依赖数据规模与覆盖，更依赖\textbf{训练信号的结构}——显式的推理过程能够促使模型学习可迁移的推理策略，而非在训练分布上“背答案”。
 
 \subsection{最终结果：Chinese SimpleVQA与SimpleVQA}
-在完成上述训练与数据构造策略后，一共产出了\textbf{80w}条数据，在Chinese SimpleVQA与SimpleVQA上的最终结果，分别见表\ref{tab:wk_final_chinese}与表\ref{tab:wk_final_english}。总体上，Ovis2.5\_9B在中文基准上对recognition指标达到并超过部分基线，但在final推理指标上与更大模型（如Qwen2.5-VL-72B）仍存在差距，说明后续仍可从模型容量、检索增强或更高质量推理数据等方向继续提升。
+在完成上述训练与数据构造策略后，一共产出了\textbf{80w}条数据，在Chinese SimpleVQA与SimpleVQA上的最终结果，分别见表\ref{tab:wk_final_chinese}与表\ref{tab:wk_final_english}。需要说明的是，最终表中的部分指标相较表\ref{tab:wk_think_improve}有所回落，这并不意味着前述策略失效，而是由于两者对应的训练设置不同：表\ref{tab:wk_think_improve}展示的是\textbf{仅使用合成世界知识数据进行SFT}的结果，更偏向对该专项能力的定向优化；而最终结果采用的是\textbf{面向全部能力、混合全部数据的统一SFT}设置，在多任务、多分布联合训练下，世界知识相关能力会受到一定的目标稀释与任务干扰。总体上，Ovis2.5\_9B在中文基准上对recognition指标达到并超过部分基线，但在final推理指标上与更大模型（如Qwen2.5-VL-72B）仍存在差距，说明后续仍可从模型容量、检索增强或更高质量推理数据等方向继续提升。
 
 \begin{table}[htbp]
 \centering
