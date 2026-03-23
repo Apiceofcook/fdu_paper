@@ -1,0 +1,225 @@
+% ========================================
+% 复旦大学学位论文 LaTeX 模板
+% 论文题目：多模态视觉数据合成研究
+% 作者：郑国栋
+% ========================================
+
+\RequirePackage{etoolbox}
+
+\documentclass[type=master, twoside]{fduthesis}
+
+% ========================================
+% 导入必要的宏包
+% ========================================
+% 以下两个包用于生成示例文本，正式写作时可以删除
+\usepackage{kantlipsum}
+\usepackage{zhlipsum}
+\usepackage{booktabs} % 三线表（\toprule/\midrule/\bottomrule）
+
+% 其他常用宏包（根据需要取消注释）
+% \usepackage{amsmath}        % 数学公式
+% \usepackage{algorithm}      % 算法环境
+% \usepackage{algorithmic}    % 算法描述
+% \usepackage{listings}       % 代码清单
+% \usepackage{subcaption}     % 子图
+
+\fdusetup{
+  style = {
+    font = times,
+    cjk-font = fandol,
+    % font-size = 5,
+    fullwidth-stop = mapping,
+    footnote-style = pifont*,
+    % auto-make-cover = false
+    logo = {../testfiles/support/fudan-name.pdf},
+    % logo-size = {2cm,2cm,2cm}
+    hyperlink = color,
+    hyperlink-color = default,
+%
+%
+    bib-backend = bibtex,
+    bib-style = numerical,
+    bib-resource = {mythesis.bib}
+  },
+  info = {
+    degree = professional,
+    title = {多模态数据合成框架研究},
+    title* = {Data Synthesis Framework for Multimodal},
+%    date = {2017年2月10日},
+    author = {xxx},
+    author* = {xx x},
+    supervisor = {xxx\quad 教授},
+    instructors = {
+      张五六 \quad 工程师,
+      赵\quad 甲 \quad 工程师,
+      王三四 \quad 讲\quad 师
+    },
+    major = {计算机技术},
+    department = {计算与智能创新学院},
+    % secret-level = ii,
+    % secret-year = {三年},
+    % student-id = {xxxxxxxxxxx},
+    keywords = {多模态数据合成, Auto-Evol, 数据构造框架, GUI理解, 世界知识推理},
+    keywords* = {Multimodal Data Synthesis, Auto-Evol, Data Construction Framework, GUI Understanding, World Knowledge Reasoning},
+    clc = {O414.1/65}
+  }
+}
+
+% ========================================
+% 自定义命令和宏定义（根据需要添加）
+% ========================================
+
+% 定义 BibTeX 命令
+\def\BibTeX{B\textsc{ib}\TeX}
+
+% 示例：自定义命令
+% \newcommand{\mycommand}[1]{...}
+
+% 如果需要自定义字体，取消下面的注释
+% \setsansfont{Calibri}
+% \setmonofont{Consolas}
+% \setmathfont{TeX Gyre Pagella Math}
+
+\begin{document}
+
+\raggedbottom
+
+% ========================================
+% 前置部分
+% ========================================
+\frontmatter
+
+% 目录
+\tableofcontents
+
+% 插图目录
+\listoffigures
+
+% 表格目录
+\listoftables
+
+% ========================================
+% 中文摘要
+% ========================================
+\begin{abstract}
+% 在此处撰写中文摘要
+% 摘要应简明扼要地概括论文的主要内容、研究方法、主要结论等
+% 建议字数：300-500字
+
+多模态大语言模型在通用视觉理解任务上快速发展，但训练数据普遍存在噪声大、对齐弱与推理密度不足等问题，使得“数据质量”逐渐成为能力提升瓶颈。本文围绕“以可控、可迭代、可验证的方式生产高质量训练信号”展开研究，并按照数据合成框架逐步完善的逻辑推进：首先提出面向GUI理解的简单但可控多样的正向合成框架，随后提出面向世界知识的过滤、增强与反向找图协同框架，最终在两类实践基础上抽象形成统一的Auto-Evol闭环多模态数据合成框架。
+
+在GUI理解任务中，本文围绕“多源数据融合--结构化初始化--精细标注--任务化构造--质控迭代”建立正向合成框架，将真实截图转化为包含紧致bbox、OCR对齐、控件关系与状态向量的可执行监督，并结合AnyRes高分辨率感知、文本化坐标表示与双阶段混合微调（DMT）提升Referring与Grounding能力。实验表明，普通开源合成数据能够提供分布覆盖与多样性，而按该框架构造的闭源高质量数据进一步显著提升性能；在Top 200主流应用真实分布评测中，融合开源数据与框架化闭源数据后，Grounding F1由0.324提升至0.846，Referring F1由0.523提升至0.905，验证了该正向合成框架在结构化锚定、可执行监督与质量控制上的有效性。
+
+在世界知识任务中，本文进一步提出过滤、增强与反向找图协同的数据合成框架：通过7大类40子类的知识类别框架组织词条，以“词条$\rightarrow$图片$\rightarrow$caption$\rightarrow$相关性分数过滤$\rightarrow$RecQA/KnowQA/FinalQA”将分散知识转化为可学习、可校验的多模态监督，并通过从知识实体反向寻找图片、基于caption的中间表征、相关性分数过滤以及多问一图增强提升对齐可信度与训练信号密度。进一步地，FinalQA中引入Think/CoT过程监督后，模型的实验效果显著提升，说明过程性推理监督同样是该框架带来的关键增益。
+
+基于上述两类框架实践与实验归因，本文进一步抽象并提出Auto-Evol多模态合成数据构造框架，将数据生产从单步“图像$\rightarrow$文本/问答”生成升级为闭环系统：通过数据源组织与结构化初始化、能力路由与原子问题生成（感知/理解/推理三链路）、代理式增强、多维过滤与评测式校验，以及失败样本回流重写/重生成，稳定产出高信息密度、高对齐度与高推理密度的训练信号。两条任务线的量化证据共同支撑了该框架中“结构化锚点/中间表征/过程性监督/评测式质控”等关键设计，表明该框架与数据工程方法可有效提升模型在真实场景中的定位、理解与知识推理表现，并为后续跨任务扩展提供通用底座。
+
+\end{abstract}
+
+% ========================================
+% 英文摘要
+% ========================================
+\begin{abstract*}
+% Write your English abstract here
+% The abstract should briefly summarize the main content, research methods, 
+% and conclusions of the thesis
+% Recommended length: 200-400 words
+
+Multimodal large language models (MLLMs) have advanced rapidly in general vision understanding, yet their progress is increasingly bottlenecked by training data quality, including noise, weak vision--language alignment, and insufficient reasoning density. This thesis studies how to produce high-quality multimodal training signals in a controllable, iterative, and verifiable manner, following a progressive data-synthesis logic: starting from a simple but controllable forward synthesis framework for GUI understanding, extending to a filtering-, augmentation-, and reverse-image-retrieval-oriented framework for world knowledge, and finally abstracting both into a unified closed-loop framework, Auto-Evol.
+
+For mobile graphical user interfaces (GUIs), we build a forward synthesis framework centered on multi-source data fusion, structured initialization, fine-grained annotation, task-oriented construction, and quality-controlled iteration. This framework converts screenshots into executable supervision with tight bounding boxes, OCR alignment, element relations, and interaction states, and is further combined with AnyRes-style high-resolution perception, text-formatted coordinate generation, and dual-stage mixed tuning (DMT). Experiments show that ordinary open-source synthetic data mainly contributes coverage and diversity, while the closed-source data constructed under this framework brings the major quality gain: after combining both, Grounding F1 improves from 0.324 to 0.846 and Referring F1 from 0.523 to 0.905 on a realistic top-200-app evaluation set, validating the role of framework-based structured supervision and quality control.
+
+For world knowledge enhancement, we further develop a framework that integrates taxonomy-guided organization, reverse image search from entities, caption-based intermediate representations, relevance-score filtering, and multi-stage QA construction. Specifically, we define a taxonomy with 7 super-categories and 40 sub-categories, and transform dispersed knowledge into learnable and verifiable multimodal supervision via “entry $\rightarrow$ images $\rightarrow$ captions $\rightarrow$ relevance scoring/filtering $\rightarrow$ RecQA/KnowQA/FinalQA”. We also show that the gains from Think/CoT-style FinalQA supervision should be attributed to the framework itself, since process supervision, filtering, and augmentation together improve alignment reliability and reasoning density, leading to strong improvements on Chinese SimpleVQA and competitive results on SimpleVQA.
+
+Motivated by these two stages of practice, we then abstract and propose Auto-Evol, a framework that upgrades conventional one-shot generation (image $\rightarrow$ text/QA) into a closed-loop multimodal data production system. Auto-Evol integrates data source organization, structured initialization, task routing with atomic question construction, agent-based augmentation, multi-dimensional filtering and evaluation-style verification, and feedback-driven rewriting/regeneration, aiming to stably produce training signals with high information density, strong alignment, and high reasoning density. The empirical findings from the GUI and world knowledge tasks directly validate key design choices in Auto-Evol, including structured anchors, intermediate representations, process supervision, and evaluation-driven quality control. Overall, the proposed framework and methodology effectively improve localization, understanding, and knowledge reasoning in realistic settings, and offer a reusable foundation for broader domains.
+
+\end{abstract*}
+
+% ========================================
+% 符号说明（根据论文实际使用的符号进行修改）
+% ========================================
+\begin{notation}[lp{20em}]
+% 数学符号
+$\mathbb{R}$    &  实数集 \\
+$\mathbb{N}$    &  自然数集 \\
+$\mathcal{D}$   &  数据集 \\
+$\mathcal{L}$   &  损失函数 \\
+\(\mathrm{IoU}\) &  交并比（Intersection over Union） \\
+$B_{\mathrm{pred}}$ &  预测边界框（Predicted bounding box） \\
+$B_{\mathrm{gt}}$   &  标注/真值边界框（Ground-truth bounding box） \\
+$\tau$          &  阈值（如IoU判定阈值） \\
+$[l,t,r,b]$     &  边界框坐标表示（左、上、右、下） \\
+$R_{ext}$       &  外部注释到控件的绑定关系（Label-to-Control） \\
+$R_{val}$       &  当前值到控件的绑定关系（Value-to-Control） \\
+
+% 常用符号
+$x$             &  输入数据 \\
+$y$             &  输出结果 \\
+$f(\cdot)$      &  映射函数 \\
+$\theta$        &  模型参数 \\
+
+% 缩写说明
+AI              &  人工智能 (Artificial Intelligence) \\
+ML              &  机器学习 (Machine Learning) \\
+DL              &  深度学习 (Deep Learning) \\
+CNN             &  卷积神经网络 (Convolutional Neural Network) \\
+GAN             &  生成对抗网络 (Generative Adversarial Network) \\
+GUI             &  图形用户界面 (Graphical User Interface) \\
+VLM             &  视觉语言模型 (Vision--Language Model) \\
+MLLM            &  多模态大语言模型 (Multimodal Large Language Model) \\
+OCR             &  光学字符识别 (Optical Character Recognition) \\
+SFT             &  监督微调 (Supervised Fine-Tuning) \\
+CoT             &  链式思维 (Chain-of-Thought) \\
+QA              &  问答 (Question Answering) \\
+RecQA           &  识别问答 (Recognition QA) \\
+KnowQA          &  知识问答 (Knowledge QA) \\
+FinalQA         &  推理问答 (Reasoning QA) \\
+DMT             &  双阶段混合微调 (Dual-stage Mixed Tuning) \\
+AnyRes          &  动态分辨率/任意分辨率机制 (Any Resolution) \\
+
+% 根据实际需要添加更多符号
+% ...
+
+\end{notation}
+
+\mainmatter
+
+% ========================================
+% 论文正文部分：各章节内容
+% ========================================
+
+% 第一章：绪论
+\input{chapters/chapter1}
+
+% 第二章：相关工作
+\input{chapters/chapter2}
+
+% 第三章：GUI正向合成框架
+\input{chapters/chapter4}
+
+% 第四章：世界知识升级框架
+\input{chapters/chapter5}
+
+% 第五章：统一闭环框架
+\input{chapters/chapter3}
+
+% 第六章：结论
+\input{chapters/chapter6}
+
+% ========================================
+% 如果需要引用所有参考文献，取消下面的注释
+\nocite{*}
+% ========================================
+
+% ========================================
+% 后置部分：参考文献
+% ========================================
+\backmatter
+
+% 使用 bibtex 时用以下命令
+% \bibliography{mythesis}
+
+% 使用 biblatex 时用以下命令
+\printbibliography
+
+\end{document}
