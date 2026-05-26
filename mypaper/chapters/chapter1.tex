@@ -3,39 +3,28 @@
 
 \section{研究背景}
 
-\paragraph{（1）问题阐述：数据质量正在取代数据规模成为多模态模型的能力瓶颈。}
-多模态大语言模型（Multimodal Large Language Model, MLLM）近年来在视觉理解与语言生成方面取得显著进展\citep{openai2024gpt4o,team2023gemini,bai2025qwen25vl,liu2024visual}，并逐步从通用图文理解走向真实应用形态的智能体（Agent）与复杂推理任务\citep{wu2024osatlas,xie2024osworld,llmguiaentsurvey2024}。在这一阶段，模型能力的上限越来越受制于训练数据的\textbf{质量、对齐与推理密度}，而不仅仅是数据规模：互联网抓取的图文对普遍存在噪声大、语义对齐弱、图像质量参差不齐等问题\citep{schuhmann2022laion5b,byeon2022coyo,hessel2021clipscore}；人工标注虽然可靠，但成本高且难以覆盖长尾场景、复杂交互形态与多步推理链路\citep{wang2023selfinstruct,mukherjee2023orca}。与此同时，模型在真实落地任务中暴露出的误差模式往往具有“结构性”：例如对小目标与文字细节不稳定\citep{liu2024seeclick,du2020ppocr}、对视觉证据与语言描述的绑定松散\citep{li2023pope}、对需要先识别再推断的任务易出现短路映射或幻觉\citep{marino2019okvqa,zhang2023multimodalcot}。这些结构性误差表明，仅靠扩规模已经难以系统性地提升模型在关键能力维度上的表现\citep{chen2023sharegpt4v,xu2024mmevol,liu2025synthvlm}。
+多模态大语言模型（Multimodal Large Language Model, MLLM）近年来在视觉理解与语言生成方面取得显著进展\citep{openai2024gpt4o,team2023gemini,bai2025qwen25vl,liu2024visual}，并逐步从通用图文理解走向真实应用形态的智能体（Agent）与复杂推理任务\citep{wu2024osatlas,xie2024osworld,llmguiaentsurvey2024}。在这一阶段，模型能力的上限越来越受制于训练数据的\textbf{质量、对齐与推理密度}，而不仅仅是数据规模：互联网抓取的图文对普遍存在噪声大、语义对齐弱、图像质量参差不齐等问题\citep{schuhmann2022laion5b,byeon2022coyo,hessel2021clipscore}；人工标注虽然可靠，但成本高且难以覆盖长尾场景、复杂交互形态与多步推理链路\citep{wang2023selfinstruct,mukherjee2023orca}。与此同时，模型在真实落地任务中暴露出的误差模式往往具有“结构性”：例如对小目标与文字细节不稳定\citep{liu2024seeclick,du2020ppocr}、对视觉证据与语言描述的绑定松散\citep{li2023pope}、对需要先识别再推断的任务易出现短路映射或幻觉\citep{marino2019okvqa,zhang2023multimodalcot}。这些结构性误差表明，仅靠扩规模已经难以系统性地提升模型在关键能力维度上的表现\citep{chen2023sharegpt4v,xu2024mmevol,liu2025synthvlm}——\textbf{数据质量正在取代数据规模成为多模态模型的能力瓶颈}。
 
-\paragraph{（2）研究主张：把“零散一次性合成”升级为“闭环可迭代合成系统”。}
-针对上述瓶颈，本文的核心研究主张是：\textbf{多模态数据生产不应被视为“生成一些图文/问答对”的单步过程，而应被组织为一个面向能力提升的闭环系统}——以可控、可迭代、可验证的方式持续产出\textbf{高信息密度、高对齐度与高推理密度}的训练信号。该系统需同时回应模型的三类基础能力——\textbf{感知}（看得清、定位稳）、\textbf{理解}（看得懂、绑得牢）与\textbf{推理}（想得全、链得通），并通过\textbf{数据源组织 $\rightarrow$ 结构化初始化 $\rightarrow$ 任务原子化生成 $\rightarrow$ 多维增强 $\rightarrow$ 评测式校验 $\rightarrow$ 失败回流}的全链路前置约束训练信号质量。
+针对这一瓶颈，本文的核心主张是：\textbf{多模态数据生产不应被视为“生成一些图文/问答对”的单步过程，而应被组织为一个面向能力提升的闭环系统}——以可控、可迭代、可验证的方式持续产出\textbf{高信息密度、高对齐度与高推理密度}的训练信号。该系统需同时回应模型的三类基础能力——\textbf{感知}（看得清、定位稳）、\textbf{理解}（看得懂、绑得牢）与\textbf{推理}（想得全、链得通），并通过\textbf{数据源组织 $\rightarrow$ 结构化初始化 $\rightarrow$ 任务原子化生成 $\rightarrow$ 多维增强 $\rightarrow$ 评测式校验 $\rightarrow$ 失败回流}的全链路前置约束训练信号质量。换言之，本文要把以往“零散的一次性合成”升级为“闭环可迭代的合成系统”。
 
-\paragraph{（3）研究路径：以“数据能力光谱”两极为实证，归纳共通骨架。}
-要验证上述主张，本文不选择“在通用图文任务上做小幅改进”，而是选择\textbf{多模态数据能力光谱的两个极端场景}作为实证支点，使共通的数据工程骨架在两极之间自然涌现（如图\ref{fig:overview}所示）：
-\begin{itemize}
-  \item \textbf{感知极端 —— 面向 GUI 的高精度可执行监督（第\ref{chap:gui}章）}。GUI（移动端/桌面端用户图形界面）任务以控件密集、文字细小、状态易变为特征\citep{deka2017rico,gao2024mobileviews,liu2024seeclick}，其监督必须\textbf{细到像素、对到字段、绑到状态}：模型需在 Referring（指代识别）与 Grounding（定位落地）等任务中输出可执行的目标位置。GUI 因此构成数据能力光谱的“\textbf{高精度、低知识、强可执行}”一极\citep{li2022clay,du2020ppocr,guicourse2024,liu2025uie2isynth,guiworld2024}。
-  \item \textbf{推理极端 —— 面向世界知识的可验证对齐与过程推理（第\ref{chap:world_knowledge}章）}。世界知识（World Knowledge）任务要求模型把图像中的\textbf{具体实例}锚定到知识空间的\textbf{抽象实体与事实}\citep{marino2019okvqa,schwenk2022aokvqa,chen2023infoseek}，并在多跳条件约束下完成“先识别 $\rightarrow$ 再检索 $\rightarrow$ 再筛选”的推理链路\citep{chang2022webqa,lewis2020rag,yao2023react}。其数据工程的关键不是像素级精度，而是\textbf{语义级可验证对齐与过程性监督}：训练样本必须可核验、答案必须唯一、推理链路必须显式\citep{li2023pope,wei2024simpleqa,wei2022chain,zhang2023multimodalcot}。世界知识因此构成数据能力光谱的“\textbf{高知识、需推理、弱像素约束}”一极。
-\end{itemize}
-\textbf{两极的策略性互补}使得二者并不是“两件不相关的事”，而是把多模态数据需求拉到了能力光谱的两端：GUI 解决“看得准、点得稳”，世界知识解决“懂得对、推得通”。在两极的真实工程实践中，\textbf{数据源组织、结构化初始化、任务分解与生成、增强/过滤/多维校验、失败回流与闭环迭代}等模块以高度一致的形态反复出现——这正是本文得以将其抽象为统一框架的实证基础。
+要验证上述主张，本文不选择“在通用图文任务上做小幅改进”的常规路线，而是选择\textbf{多模态数据能力光谱的两端场景}作为实证支点，使共通的数据工程骨架在两端之间自然涌现（如图\ref{fig:overview}所示）。其中，\textbf{感知端}对应面向 GUI 的高精度可执行监督（第\ref{chap:gui}章）：GUI（移动端/桌面端用户图形界面）任务以控件密集、文字细小、状态易变为特征\citep{deka2017rico,gao2024mobileviews,liu2024seeclick}，其监督必须\textbf{细到像素、对到字段、绑到状态}——模型需在 Referring（指代识别）与 Grounding（定位落地）等任务中输出可执行的目标位置，因此构成数据能力光谱的“\textbf{高精度、低知识、强可执行}”一端\citep{li2022clay,du2020ppocr,guicourse2024,liu2025uie2isynth,guiworld2024}。\textbf{推理端}则对应面向世界知识的可验证对齐与过程推理（第\ref{chap:world_knowledge}章）：世界知识（World Knowledge）任务要求模型把图像中的\textbf{具体实例}锚定到知识空间的\textbf{抽象实体与事实}\citep{marino2019okvqa,schwenk2022aokvqa,chen2023infoseek}，并在多跳条件约束下完成“先识别 $\rightarrow$ 再检索 $\rightarrow$ 再筛选”的推理链路\citep{chang2022webqa,lewis2020rag,yao2023react}；其数据工程的关键不是像素级精度，而是\textbf{语义级可验证对齐与过程性监督}——训练样本必须可核验、答案必须唯一、推理链路必须显式\citep{li2023pope,wei2024simpleqa,wei2022chain,zhang2023multimodalcot}，因此构成光谱的“\textbf{高知识、需推理、弱像素约束}”一端。两端的策略性互补使得二者并非“两件不相关的事”，而是把多模态数据需求拉到了能力光谱的两端：GUI 解决“看得准、点得稳”，世界知识解决“懂得对、推得通”。在两端的真实工程实践中，\textbf{数据源组织、结构化初始化、任务分解与生成、增强/过滤/多维校验、失败回流与闭环迭代}等模块以高度一致的形态反复出现，这正是本文得以将其抽象为统一框架的实证基础。
 
-\textbf{两极之间的综合中段}：除两极之外，许多真实任务实际上同时需要感知与推理两类能力的协同——例如 GUI 计算机使用智能体（Computer Use Agent, CUA）任务，其完整动作链同时要求模型\textbf{看清当前界面控件状态（感知）、规划多步操作序列（推理）与跟踪动态状态转移（状态机）}三者协同，因而处于数据能力光谱的\textbf{综合中段}，与单步定位的第\ref{chap:gui}章 GUI 任务存在本质区别。第5章将 Auto-Evol 同时在两极（通过对第\ref{chap:gui}章/第\ref{chap:world_knowledge}章工作的归纳）与综合中段（通过 GUI CUA 端到端可验证任务合成与 SFT 实验）验证，从而完整覆盖数据能力光谱的两极与中段三个代表性位置。
-
-\paragraph{（4）研究架构与贡献预告。}
-基于两极的工程实践与共通模式归纳，本文在第\ref{chap:gui}章与第\ref{chap:world_knowledge}章分别给出 GUI 与世界知识两条数据工程主线，并在第5章进一步将二者共通的骨架抽象为\textbf{Auto-Evol 多模态数据合成框架}；在框架抽象之上，本文还将该框架实例化到 GUI 计算机使用智能体（CUA）场景，依托 OSWorld 评测体系\citep{xie2024osworld}构建可验证任务合成的工程系统，并通过端到端“合成任务$\rightarrow$轨迹采集$\rightarrow$单步拆分$\rightarrow$SFT”实验提供 Qwen3VL-Think 在 OSWorld LibreOffice 三个 domain 上 40.8\%$\rightarrow$61.4\%（+20.6 pt）的量化证据，验证框架的可迁移性，并与 EvoCUA\citep{xue2026evocua}等近期工作形成互补。图\ref{fig:overview}给出了本文研究问题、两极主线与统一框架之间的关系，全文章节按“两极实证 $\rightarrow$ 共通抽象 $\rightarrow$ 端到端验证”的顺序展开。
+除两端之外，许多真实任务同时需要感知与推理两类能力的协同——例如 GUI 计算机使用智能体（Computer Use Agent, CUA）任务，其完整动作链同时要求模型\textbf{看清当前界面控件状态（感知）、规划多步操作序列（推理）与跟踪动态状态转移（状态机）}三者协同，因而处于数据能力光谱的\textbf{综合中段}，与单步定位的第\ref{chap:gui}章 GUI 任务存在本质区别。基于两端的工程实践与共通模式归纳，本文在第\ref{chap:gui}章与第\ref{chap:world_knowledge}章分别给出 GUI 与世界知识两条数据工程主线，并在第5章进一步将二者共通的骨架抽象为\textbf{Auto-Evol 多模态数据合成框架}；在框架抽象之上，本文还将该框架实例化到 GUI CUA 综合中段场景，依托 OSWorld 评测体系\citep{xie2024osworld}构建可验证任务合成的工程系统，并通过端到端“合成任务$\rightarrow$轨迹采集$\rightarrow$单步拆分$\rightarrow$SFT”实验提供 Qwen3VL-Think 在 OSWorld LibreOffice 三个 domain 上 40.8\%$\rightarrow$61.4\%（+20.6 pt）的量化证据，验证框架的可迁移性，并与 EvoCUA\citep{xue2026evocua}等近期工作形成互补。图\ref{fig:overview}给出了本文研究问题、两端主线与统一框架之间的关系，全文章节按“两端实证 $\rightarrow$ 共通抽象 $\rightarrow$ 综合中段独立验证”的顺序展开。
 
 \begin{figure}[!htbp]
   \centering
   \includegraphics[width=0.95\linewidth]{figures/chapter1/overview.pdf}
-  \caption{本文研究架构概览：上层为研究问题与核心主张；中部为“数据能力光谱”两极——第\ref{chap:gui}章 GUI 数据工程（感知极端）与第\ref{chap:world_knowledge}章 世界知识数据工程（推理极端）；下层为从两极归纳的共通骨架及其抽象为 Auto-Evol 框架（第5章），并以 GUI CUA 端到端 SFT 实验验证。}
+  \caption{本文研究架构概览：上层为研究问题与核心主张；中部为“数据能力光谱”两端——第\ref{chap:gui}章 GUI 数据工程（感知端）与第\ref{chap:world_knowledge}章 世界知识数据工程（推理端）；下层为从两端归纳的共通骨架及其抽象为 Auto-Evol 框架（第5章），并以 GUI CUA 端到端 SFT 实验验证。}
   \label{fig:overview}
 \end{figure}
 
 \section{主要贡献}
 
-本文围绕“多模态数据合成框架”这一主线，沿\textbf{数据能力光谱}的三个代表性位置（感知极端 / 推理极端 / 综合中段）展开“两极实证 $\rightarrow$ 共通抽象 $\rightarrow$ 综合中段独立验证”的研究路径，主要贡献总结为三点：
+本文围绕“多模态数据合成框架”这一主线，沿\textbf{数据能力光谱}的三个代表性位置（感知端 / 推理端 / 综合中段）展开“两端实证 $\rightarrow$ 共通抽象 $\rightarrow$ 综合中段独立验证”的研究路径，主要贡献总结为三点：
 \begin{itemize}
-  \item \textbf{感知极端：面向 GUI 的高质量数据工程与可执行定位能力提升方案（精细但强约束的合成/标注范式）}：针对 GUI“控件密集、文字细小、状态易变”的特征，构建多源融合的数据 Pipeline 与结构化监督信号（bbox / OCR / 关系 / 状态），并结合高分辨率感知与训练策略提升 Referring 与 Grounding 两项核心能力；该部分更偏向“相对原始但精细”的数据合成与标注工程，为后续更复杂任务的监督设计提供可复用的监督原子与质控方法（如表\ref{tab:gui_data_ablation}、表\ref{tab:gui_grounding}与表\ref{tab:gui_referring}所示）。
-  \item \textbf{推理极端：面向世界知识的可控对齐与推理贯通数据体系（增强与反向对齐的更先进合成范式）}：构建覆盖广、可扩展的世界知识类别框架，并设计“词条$\rightarrow$图片$\rightarrow$caption$\rightarrow$相关性过滤$\rightarrow$三类QA”的数据 Pipeline；引入数据增强与从答案出发的反向对齐流程，提升“视觉证据$\leftrightarrow$知识事实”的可验证性；进一步通过带推理过程（Think/CoT）的 FinalQA 缓解短路映射与任务冲突，显著提升需要“先识别再推理”的世界知识能力（如表\ref{tab:wk_think_improve}所示）。
-  \item \textbf{共通抽象 + 综合中段独立验证：Auto-Evol 多模态数据合成框架及其 GUI CUA 实例化}：在两极数据合成范式的差异与共通点之上，抽象出一套面向能力提升的通用数据合成流程，统一刻画多源数据接入、结构化初始化、任务路由与原子问题生成、增强与多维校验、失败回流重写等关键环节，使高信息密度、高对齐度与高推理密度的数据能够被稳定、迭代地产出与复用（对应第5章的整体框架与模块设计）；进一步将该框架实例化到\textbf{综合中段}——GUI 计算机使用智能体（Computer Use Agent, CUA）场景（多步操作链 + 动态状态机，与第\ref{chap:gui}章单步定位的 GUI 任务存在本质区别），依托 OSWorld\citep{xie2024osworld}评测体系，跨 LibreOffice 三个 domain（Calc/Impress/Writer）以及 VSCode、Chrome 等扩展 domain 验证了框架在“看--懂--做”闭环下的可迁移性，与近期 EvoCUA\citep{xue2026evocua}等代表性工作形成互补与延伸；端到端训练实验进一步证实其有效性——基于本框架合成的 900 任务、723 成功轨迹与 3 万条单步训练数据，将 Qwen3VL-Think 在 OSWorld LibreOffice 三个 domain 上的 overall accuracy 由\textbf{40.8\%}提升至\textbf{61.4\%}（绝对增益\textbf{+20.6 pt}，详见第5章\ref{sec:auto_evol_gui_cua}节与表\ref{tab:gui_cua_train_result}）。这一实例化使 Auto-Evol 同时具备\textbf{方法论闭合}（横跨两极的共通骨架）与\textbf{独立端到端贡献}（在新场景上的独立可验证实验证据）的\textbf{双重定位}。
+  \item \textbf{感知端：面向 GUI 的高质量数据工程与可执行定位能力提升方案（精细但强约束的合成/标注范式）}：针对 GUI“控件密集、文字细小、状态易变”的特征，构建多源融合的数据 Pipeline 与结构化监督信号（bbox / OCR / 关系 / 状态），并结合高分辨率感知与训练策略提升 Referring 与 Grounding 两项核心能力；该部分更偏向“相对原始但精细”的数据合成与标注工程，为后续更复杂任务的监督设计提供可复用的监督原子与质控方法（如表\ref{tab:gui_data_ablation}、表\ref{tab:gui_grounding}与表\ref{tab:gui_referring}所示）。
+  \item \textbf{推理端：面向世界知识的可控对齐与推理贯通数据体系（增强与反向对齐的更先进合成范式）}：构建覆盖广、可扩展的世界知识类别框架，并设计“词条$\rightarrow$图片$\rightarrow$caption$\rightarrow$相关性过滤$\rightarrow$三类QA”的数据 Pipeline；引入数据增强与从答案出发的反向对齐流程，提升“视觉证据$\leftrightarrow$知识事实”的可验证性；进一步通过带推理过程（Think/CoT）的 FinalQA 缓解短路映射与任务冲突，显著提升需要“先识别再推理”的世界知识能力（如表\ref{tab:wk_think_improve}所示）。
+  \item \textbf{共通抽象 + 综合中段独立验证：Auto-Evol 多模态数据合成框架及其 GUI CUA 实例化}：在两端数据合成范式的差异与共通点之上，抽象出一套面向能力提升的通用数据合成流程，统一刻画多源数据接入、结构化初始化、任务路由与原子问题生成、增强与多维校验、失败回流重写等关键环节，使高信息密度、高对齐度与高推理密度的数据能够被稳定、迭代地产出与复用（对应第5章的整体框架与模块设计）；进一步将该框架实例化到\textbf{综合中段}——GUI 计算机使用智能体（Computer Use Agent, CUA）场景（多步操作链 + 动态状态机，与第\ref{chap:gui}章单步定位的 GUI 任务存在本质区别），依托 OSWorld\citep{xie2024osworld}评测体系，跨 LibreOffice 三个 domain（Calc/Impress/Writer）以及 VSCode、Chrome 等扩展 domain 验证了框架在“看--懂--做”闭环下的可迁移性，与近期 EvoCUA\citep{xue2026evocua}等代表性工作形成互补与延伸；端到端训练实验进一步证实其有效性——基于本框架合成的 900 任务、723 成功轨迹与 3 万条单步训练数据，将 Qwen3VL-Think 在 OSWorld LibreOffice 三个 domain 上的 overall accuracy 由\textbf{40.8\%}提升至\textbf{61.4\%}（绝对增益\textbf{+20.6 pt}，详见第5章\ref{sec:auto_evol_gui_cua}节与表\ref{tab:gui_cua_train_result}）。这一实例化使 Auto-Evol 同时具备\textbf{方法论闭合}（横跨两端的共通骨架）与\textbf{独立端到端贡献}（在新场景上的独立可验证实验证据）的\textbf{双重定位}。
 \end{itemize}
 
 \section{论文组织结构}
@@ -46,9 +35,9 @@
 
 第二章（相关工作）回顾视觉-语言模型与多模态大模型的发展脉络，以及GUI理解、世界知识增强与多模态数据合成相关研究，为本文方法设计提供背景支撑。
 
-第三章（面向GUI的能力提升 —— 感知极端实证）围绕Referring与Grounding两项核心能力，给出GUI场景的数据工程Pipeline、结构化监督设计与训练策略（如高分辨率感知与双阶段混合微调），并通过控件级评测验证方法有效性（第\ref{chap:gui}章）。该章对应数据能力光谱的\textbf{感知极端}，聚焦“精细但强约束”的数据合成与标注流程，为后续章节的更复杂合成提供方法基座。
+第三章（面向GUI的能力提升 —— 感知端实证）围绕Referring与Grounding两项核心能力，给出GUI场景的数据工程Pipeline、结构化监督设计与训练策略（如高分辨率感知与双阶段混合微调），并通过控件级评测验证方法有效性（第\ref{chap:gui}章）。该章对应数据能力光谱的\textbf{感知端}，聚焦“精细但强约束”的数据合成与标注流程，为后续章节的更复杂合成提供方法基座。
 
-第四章（世界知识能力提升 —— 推理极端实证）构建世界知识类别框架与端到端数据 Pipeline，提出 RecQA/KnowQA/FinalQA 的任务分解，并通过引入数据增强、反向对齐与 Think/CoT 等过程性监督提升“先识别再推理”的世界知识推理能力（第\ref{chap:world_knowledge}章）。该章对应数据能力光谱的\textbf{推理极端}，相较 GUI 进一步强调对齐可信与推理贯通，为统一框架抽象提供更丰富的模块形态。
+第四章（世界知识能力提升 —— 推理端实证）构建世界知识类别框架与端到端数据 Pipeline，提出 RecQA/KnowQA/FinalQA 的任务分解，并通过引入数据增强、反向对齐与 Think/CoT 等过程性监督提升“先识别再推理”的世界知识推理能力（第\ref{chap:world_knowledge}章）。该章对应数据能力光谱的\textbf{推理端}，相较 GUI 进一步强调对齐可信与推理贯通，为统一框架抽象提供更丰富的模块形态。
 
 第五章（多模态数据合成框架 —— 共通抽象 + 综合中段独立验证）在第三、四章两类数据合成范式的对比与互补基础上，提炼共通机制与可改进方向，进一步抽象提出 Auto-Evol 多模态数据合成框架，系统阐述闭环 Pipeline 及其关键模块，并结合实验现象对核心设计进行归因式验证；在框架抽象之上，本章还将 Auto-Evol 实例化到\textbf{综合中段}的 GUI CUA 场景（与第\ref{chap:gui}章单步定位的 GUI 任务本质不同），基于 OSWorld 评测体系\citep{xie2024osworld}构建可验证任务合成的工程系统，跨 LibreOffice 三个 domain 与 VSCode、Chrome 等扩展 domain 验证框架的跨任务可迁移性，并通过“合成任务$\rightarrow$轨迹采集$\rightarrow$单步拆分$\rightarrow$SFT”的端到端实验给出量化证据（Qwen3VL-Think overall accuracy +20.6 pt），与 EvoCUA\citep{xue2026evocua}等代表性工作形成互补，从而确立 Auto-Evol 的\textbf{双重定位}：方法论闭合 + 独立端到端贡献。
 
